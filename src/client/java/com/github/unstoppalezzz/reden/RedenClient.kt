@@ -1,0 +1,111 @@
+package com.github.unstoppalezzz.reden
+
+import com.github.unstoppalezzz.reden.malilib.GuiConfigs
+import com.github.unstoppalezzz.reden.malilib.HOTKEYS
+import com.github.unstoppalezzz.reden.malilib.configureKeyCallbacks
+import com.github.unstoppalezzz.reden.malilib.getAllOptions
+import com.github.unstoppalezzz.reden.network.registerClientPackets
+import com.github.unstoppalezzz.reden.utils.checkMalilib
+import com.github.unstoppalezzz.reden.utils.isDebug
+import com.github.unstoppalezzz.reden.utils.startDebugAppender
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import fi.dy.masa.malilib.config.ConfigManager
+import fi.dy.masa.malilib.config.ConfigUtils
+import fi.dy.masa.malilib.config.IConfigHandler
+import fi.dy.masa.malilib.event.InitializationHandler
+import fi.dy.masa.malilib.event.InputEventHandler
+import fi.dy.masa.malilib.hotkeys.IKeybindManager
+import fi.dy.masa.malilib.hotkeys.IKeybindProvider
+import fi.dy.masa.malilib.util.FileUtils
+import net.fabricmc.api.ClientModInitializer
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper
+import net.fabricmc.fabric.api.resource.ResourcePackActivationType
+import net.fabricmc.loader.api.FabricLoader
+import net.minecraft.client.Minecraft
+import java.nio.file.Files
+import java.util.*
+import kotlin.io.path.createParentDirectories
+import kotlin.io.path.exists
+
+val GSON = Gson()
+
+fun loadMalilibSettings() {
+    val path = FileUtils.getConfigDirectoryAsPath().resolve("reden/config.json")
+        .createParentDirectories()
+    if (!path.exists()) {
+        return
+    }
+    val jo = GSON.fromJson(Files.readString(path), JsonObject::class.java)
+    ConfigUtils.readConfigBase(jo, Reden.MOD_NAME, getAllOptions())
+    if (isDebug) {
+        startDebugAppender()
+    }
+}
+
+fun saveMalilibOptions() {
+    val jo = JsonObject()
+    ConfigUtils.writeConfigBase(jo, Reden.MOD_NAME, getAllOptions())
+    Files.writeString(
+        FileUtils.getConfigDirectoryAsPath().resolve("reden/config.json")
+            .createParentDirectories(),
+        GSON.toJson(jo)
+    )
+}
+
+class RedenClient : ClientModInitializer {
+    override fun onInitializeClient() {
+        checkMalilib()
+        registerClientPackets()
+        fi.dy.masa.malilib.registry.Registry.CONFIG_SCREEN.registerConfigScreenFactory(
+            fi.dy.masa.malilib.util.data.ModInfo(
+                "reden",
+                "Reden",
+                ::GuiConfigs
+            )
+        )
+        InitializationHandler.getInstance().registerInitializationHandler {
+            ConfigManager.getInstance().registerConfigHandler("reden", object : IConfigHandler {
+                override fun load() {
+                    loadMalilibSettings()
+                }
+
+                override fun save() {
+                    saveMalilibOptions()
+                }
+            })
+            loadMalilibSettings()
+            val mc = Minecraft.getInstance()
+            configureKeyCallbacks(mc)
+
+            InputEventHandler.getKeybindManager().registerKeybindProvider(object : IKeybindProvider {
+                override fun addKeysToMap(iKeybindManager: IKeybindManager) {
+                    HOTKEYS.forEach {
+                        iKeybindManager.addKeybindToMap(it.keybind)
+                    }
+                }
+
+                override fun addHotkeys(keybindManager: IKeybindManager) {
+                    keybindManager.addHotkeysForCategory("Reden", "reden.hotkeys.category.generic_hotkeys", HOTKEYS)
+                }
+            })
+        }
+        val packs = listOf(
+            Reden.identifier("greenstone"),
+        )
+        packs.forEach {
+            if (!ResourceManagerHelper.registerBuiltinResourcePack(
+                    it, FabricLoader.getInstance().getModContainer(Reden.MOD_ID).get(), ResourcePackActivationType.NORMAL
+                )
+            ) {
+                Reden.LOGGER.error("Failed to register $it resource pack")
+            }
+        }
+
+        if (Calendar.getInstance()[Calendar.MONTH] == Calendar.APRIL
+            && Calendar.getInstance()[Calendar.DAY_OF_MONTH] == 1
+        ) {
+            Minecraft.getInstance().resourcePackRepository.addPack("reden:greenstone")
+        }
+    }
+}

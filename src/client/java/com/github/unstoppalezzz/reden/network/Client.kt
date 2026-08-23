@@ -1,0 +1,43 @@
+package com.github.unstoppalezzz.reden.network
+
+import com.github.unstoppalezzz.reden.Reden
+import com.github.unstoppalezzz.reden.utils.multiver.Text
+import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationNetworking
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
+import net.minecraft.network.chat.Component
+
+// @formatter:off
+//? if > 1.21.1 {
+import com.github.unstoppalezzz.reden.utils.multiver.sendSystemMessage
+//?}
+
+private const val MESSAGE_PREFIX = "${Reden.MOD_ID}.message."
+
+fun translateMessage(category: String, key: String, vararg args: Any): Component {
+    return Text.translatable("$MESSAGE_PREFIX$category.base", Text.translatable("$MESSAGE_PREFIX$category.$key", args))
+}
+
+fun registerClientPackets() {
+    ClientConfigurationNetworking.registerGlobalReceiver(HelloS2CPacket.ID) { packet, context ->
+        Reden.LOGGER.info("Hello from server: $packet")
+        Reden.LOGGER.info("Feature set: " + packet.featureSet.joinToString())
+        packet.featureSet.forEach { name ->
+            when (name) {
+                "undo" -> ClientPlayNetworking.registerGlobalReceiver(Undo.ID) { packet, context ->
+                    context.player().sendSystemMessage(
+                        when (packet.status) {
+                            0     -> translateMessage("undo", "rollback_success")
+                            1     -> translateMessage("undo", "restore_success")
+                            2     -> translateMessage("undo", "no_blocks_info")
+                            16    -> translateMessage("undo", "no_permission")
+                            32    -> translateMessage("undo", "not_recording")
+                            64    -> translateMessage("undo", "busy")
+                            65536 -> translateMessage("undo", "unknown_error")
+                            else  -> translateMessage("undo", "unknown_status")
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
