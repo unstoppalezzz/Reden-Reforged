@@ -13,7 +13,7 @@ Reden-Reforged is a fork of the original Reden project, focused on improving the
 
 ## Why this fork?
 
-This fork exists because the original project has not update in over a year 
+This fork exists because the original project has not been updated in over a year.
 
 ## Credits
 
@@ -23,6 +23,8 @@ Original author: **zly2006**
 Special thanks to the original developers and contributors for creating the foundation this project is based on.
 
 ## Build
+
+If you want to build for pre-Minecraft 26 versions, you need to use the mapping version that is in the root
 
 ```bash
 ./gradlew build
