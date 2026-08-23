@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+  "name": "Reden Reforged",
+  "description": "This is an example description! Tell everyone what your mod is about!",
+  "authors": [
+    "unstoppalezzz"
+  ],
+  "contact": {
+    "homepage": "https://redenmc.com/",
+    "sources": "https://github.com/unstoppalezzz/Reden-Reforged"
+  },
+  "license": "LGPL-v3.0-only",
+  "icon": "assets/reden/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.github.unstoppalezzz.reden.Reden"
+    ]
+    ,"client": [
+      "com.github.unstoppalezzz.reden.RedenClientMinimal"
+    ]
+  },
+  "accessWidener": "reden.accesswidener",
+  "mixins": [
+    "reden.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15",
+    "minecraft": "${mcdep}",
+    "fabric-networking-api-v1": "*",
+    "fabric-language-kotlin": "*",
+    "malilib": ">=${malilib}"
+  },
+  "custom": {
+    "modmenu": {
+      "modrinth": "xRu8OXEJ"
+    }
+  }
+}

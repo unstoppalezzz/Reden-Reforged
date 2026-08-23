@@ -1,0 +1,99 @@
+package com.github.unstoppalezzz.reden.mixin.undo;
+
+import com.github.unstoppalezzz.reden.access.PlayerData;
+import com.github.unstoppalezzz.reden.access.UndoableAccess;
+import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.DebugKt;
+import net.minecraft.server.level.ServerLevel;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+// @formatter:off
+//? if <= 1.21.1 {
+/*import net.minecraft.world.level.Level;
+@Mixin(net.minecraft.world.level.Explosion.class)
+*///?} else {
+@Mixin(net.minecraft.world.level.ServerExplosion.class)
+//?}
+public class MixinExplosion implements UndoableAccess {
+// @formatter:on
+    @Unique long undoId;
+    //? if <= 1.21.1 {
+    
+    /*@Shadow @Final private Level level;
+    @Inject(
+            method = "<init>(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/world/damagesource/DamageSource;Lnet/minecraft/world/level/ExplosionDamageCalculator;DDDFZLnet/minecraft/world/level/Explosion$BlockInteraction;Lnet/minecraft/core/particles/ParticleOptions;Lnet/minecraft/core/particles/ParticleOptions;Lnet/minecraft/core/Holder;)V",
+            at = @At("RETURN")
+    )
+    private void onInit(CallbackInfo ci) {
+        if (level.isClientSide) return;
+        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
+        if (recording != null) {
+            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ recording.getId());
+            undoId = recording.getId();
+        }
+    }
+
+    @Inject(method = "finalizeExplosion", at = @At("HEAD"))
+    private void beforeAffectWorld(boolean particles, CallbackInfo ci) {
+        if (level.isClientSide) return;
+        UndoMixinHelper.pushRecord(undoId, () -> "explosion.blocks");
+    }
+
+    @Inject(method = "finalizeExplosion", at = @At("RETURN"))
+    private void afterAffectWorld(boolean particles, CallbackInfo ci) {
+        if (level.isClientSide) return;
+        UndoMixinHelper.popRecord(() -> "explosion.blocks");
+    }
+
+    @Inject(method = "explode", at = @At("HEAD"))
+    private void beforeDamageEntities(CallbackInfo ci) {
+        if (level.isClientSide) return;
+        UndoMixinHelper.pushRecord(undoId, () -> "explosion.entities");
+    }
+
+    @Inject(method = "explode", at = @At("RETURN"))
+    private void afterDamageEntities(CallbackInfo ci) {
+        if (level.isClientSide) return;
+        UndoMixinHelper.popRecord(() -> "explosion.entities");
+    }
+    *///?} else {
+    @Shadow @Final private ServerLevel level;
+
+    @Inject(
+        method = "<init>",
+        at = @At("RETURN")
+    )
+    private void onInit(CallbackInfo ci) {
+        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
+        if (recording != null) {
+            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ recording.getId());
+            undoId = recording.getId();
+        }
+    }
+
+    @Inject(method = "explode", at = @At("HEAD"))
+    private void beforeDamageEntities(CallbackInfo ci) {
+        UndoMixinHelper.pushRecord(undoId, () -> "explosion");
+    }
+
+    @Inject(method = "explode", at = @At("RETURN"))
+    private void afterDamageEntities(CallbackInfo ci) {
+        UndoMixinHelper.popRecord(() -> "explosion");
+    }
+    //?}
+
+    @Override
+    public void setUndoId$reden(long undoId) {
+        this.undoId = undoId;
+    }
+
+    @Override
+    public long getUndoId$reden() {
+        return undoId;
+    }
+}
