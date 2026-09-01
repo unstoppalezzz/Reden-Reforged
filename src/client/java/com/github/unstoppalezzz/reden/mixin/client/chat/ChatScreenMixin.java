@@ -33,11 +33,52 @@ public abstract class ChatScreenMixin extends Screen {
     @Redirect(method = "keyPressed", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/Gui;setScreen(Lnet/minecraft/client/gui/screens/Screen;)V"))
     private void keyPressed(Minecraft client, Screen screen) {
         if (screen == null) {
-            if (client.gui.screen() == reden$getThis()) {
-                client.gui.setScreen(null);
+            if (isCurrentScreenViaGui(client)) {
+                setScreenViaGuiCompat(client, null);
             }
         } else {
-            client.gui.setScreen(screen);
+            setScreenViaGuiCompat(client, screen);
+        }
+    }
+
+    @Unique
+    private boolean isCurrentScreenViaGui(Minecraft client) {
+        try {
+            Object gui = client.gui;
+            try {
+                java.lang.reflect.Method screenMethod = gui.getClass().getMethod("screen");
+                Object screen = screenMethod.invoke(gui);
+                return screen == reden$getThis();
+            } catch (Throwable ignored) {
+            }
+            try {
+                java.lang.reflect.Field screenField = gui.getClass().getField("screen");
+                Object screen = screenField.get(gui);
+                return screen == reden$getThis();
+            } catch (Throwable ignored) {
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
+    @Unique
+    private void setScreenViaGuiCompat(Minecraft client, Screen screen) {
+        try {
+            Object gui = client.gui;
+            try {
+                java.lang.reflect.Method ms = gui.getClass().getMethod("setScreen", Screen.class);
+                ms.invoke(gui, screen);
+                return;
+            } catch (Throwable ignored) {
+            }
+            try {
+                java.lang.reflect.Field screenField = gui.getClass().getField("screen");
+                screenField.set(gui, screen);
+                return;
+            } catch (Throwable ignored) {
+            }
+        } catch (Throwable ignored) {
         }
     }
 
@@ -48,7 +89,6 @@ public abstract class ChatScreenMixin extends Screen {
             return;
         }
         if (button == GLFW.GLFW_MOUSE_BUTTON_2 && MalilibSettingsKt.CHAT_RIGHT_CLICK_MENU.getBooleanValue()) {
-            // TODO: restore the 26.2 chat right-click menu once the Mojang chat screen state API is migrated.
             cir.setReturnValue(true);
         }
     }

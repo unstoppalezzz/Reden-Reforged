@@ -20,6 +20,7 @@ stonecutter {
 
     shared {
         versions(
+            "26.1.2",
             "26.2",
         )
     }

@@ -105,7 +105,7 @@ dependencies {
 
 loom {
     decompilers {
-        get("vineflower").apply { // Adds names to lambdas - useful for mixins
+        get("vineflower").apply { 
             options.put("mark-corresponding-synthetics", "1")
         }
     }
@@ -150,6 +150,7 @@ tasks.processResources {
     )
 
     filesMatching("fabric.mod.json") { expand(map) }
+    
 }
 
 tasks.withType<Jar>().configureEach {
@@ -166,7 +167,6 @@ tasks.register<Copy>("buildAndCollect") {
     into(rootProject.layout.buildDirectory.file("libs/${mod.version}"))
     dependsOn("build")
 }
-// 使用buildSrc中的自定义任务来映射方法名
 tasks.register<com.github.unstoppalezzz.reden.build.MapMojangToIntermediaryTask>("mapMojangToIntermediary") {
     inputFile.set(rootProject.file("src/methods.txt"))
     outputFile.set(project.file("build/mapped-methods.txt"))

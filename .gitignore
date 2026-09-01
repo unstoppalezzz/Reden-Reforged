@@ -1,0 +1,6 @@
+.gradle
+.kotlin
+buildSrc/.gradle
+buildSrc/.kotlin
+buildSrc/build/
+mapping version/buildSrc/build/

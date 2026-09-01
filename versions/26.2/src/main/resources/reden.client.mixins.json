@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "com.github.unstoppalezzz.reden.mixin.client",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "chat.ChatHudMixin",
+    "chat.VisibleChatHudLineMixin",
+    "keybind.MixinKeyMapping",
+    "malilib.IMixinGuiListBase",
+    "malilib.IMixinWidgetListBase",
+    "greenStone.MixinRedstone"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "noTimeOut.MixinReadTimeoutHandler"
+  ]
+}

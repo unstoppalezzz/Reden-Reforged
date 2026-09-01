@@ -22,7 +22,6 @@ import net.minecraft.client.input.MouseButtonEvent;
 
 @Mixin(ChatScreen.class)
 public abstract class ChatScreenMixin26_1_2 extends Screen {
-    // Compatibility mixin for 26.1.2: uses reflection and optional injects
     @Unique
     QuickMenuWidget quickMenuWidget = null;
 
