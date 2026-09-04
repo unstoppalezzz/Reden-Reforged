@@ -41,22 +41,17 @@ class Undo(
                     return@forEach
                 }
                 world.modified(pos, entry.time)
-                // two situations:
-                // if isUndo, the block is modified by the undo record, so we need to set the modify time to the undo record's time
-                // if isRedo, the block is modified by the player operations, so we need to set the modify time to the current time
-                //  luckily, the redo record's time is the current time
+
+                // Ignore normal block update propagation while restoring saved state.
                 world.setBlockNoPP(pos, entry.state)
-                // clear schedules
 //                world.syncedBlockEventQueue.removeIf { it.pos == pos }
 //                val blockTickScheduler = world.getChunk(pos).blockTickScheduler as ChunkTickScheduler
 //                val fluidTickScheduler = world.getChunk(pos).fluidTickScheduler as ChunkTickScheduler
 //                blockTickScheduler.removeTicksIf { it.pos == pos }
 //                fluidTickScheduler.removeTicksIf { it.pos == pos }
-                // apply block entity
                 entry.beType?.let { beType ->
                     debugLogger("undo block entity ${pos}, $beType")
                     if (entry.state.hasBlockEntity()) {
-                        // Dont use EntityBlock.newBlockEntity, piston bug
                         val be = beType.create(pos, entry.state)
                         val beData = entry.beData
                         if (beData == null) return@let
@@ -94,6 +89,7 @@ class Undo(
                     }
                 }
             }
+   
             record.entities.forEach {
                 val entity = world.getEntity(it.key)
                 if (entity == null) {
@@ -101,7 +97,6 @@ class Undo(
                         val entry = it.value
                         debugLogger("undo entity ${it.key} spawning")
                         val newEntity = entry.entity!!.spawn(world, { newEntity ->
-                            // Note: uuid is different from the original one, set it manually
                             newEntity.uuid = it.key
                         },
 //? if <= 1.21.1 {

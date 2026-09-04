@@ -7,6 +7,7 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.github.unstoppalezzz.reden.network.ChannelsKt;
+import com.github.unstoppalezzz.reden.utils.DebugKt;
 
 public class Reden implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("template");
@@ -18,6 +19,7 @@ public class Reden implements ModInitializer {
     public void onInitialize() {
         ChannelsKt.registerChannelServer();
         ServerLifecycleEvents.SERVER_STARTED.register(UtilsKt::setServer);
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> DebugKt.startDebugAppender());
     }
 
     private ClassLoader hijackClassLoader() {

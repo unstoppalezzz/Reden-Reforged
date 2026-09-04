@@ -21,7 +21,7 @@ import java.time.Instant
 
 private val LOGGER = Reden.LOGGER
 @JvmField
-var debugLogger: (String) -> Unit = { if (isDebug) LOGGER.debug(it) }
+var debugLogger: (String) -> Unit = { }
 val isDebug: Boolean get() = false
 
 val isDevVersion: Boolean = listOf("dev", "alpha", "beta").any { Reden.MOD_VERSION.contains(it) }

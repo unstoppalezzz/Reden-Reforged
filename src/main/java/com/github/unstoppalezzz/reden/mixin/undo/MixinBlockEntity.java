@@ -49,9 +49,17 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 lastComponents = components;
                 DebugKt.debugLogger.invoke("saved lastComponents at " + worldPosition.toShortString() + ", cause=reden manually, " + lastComponents);
             } else {
-                /*lastSavedNbt = this.saveWithId(level.registryAccess());
-                DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
-                */
+                try {
+                    var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
+                            net.minecraft.util.ProblemReporter.DISCARDING,
+                            level.registryAccess()
+                    );
+                    this.saveWithId(vo);
+                    lastSavedNbt = vo.buildResult();
+                    DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
+                } catch (Throwable t) {
+                    DebugKt.debugLogger.invoke("failed to save lastSavedNbt: " + t.getMessage());
+                }
             }
             lastSaveTime = level.getServer().getTickCount();
         }
@@ -59,7 +67,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
 
     @Unique
     private boolean isComponentsValid(DataComponentMap lastComponents) {
-        return false; // only has block state and block entity data, which are not useful for undo
+        return false;
     }
 
     @Override
@@ -86,7 +94,6 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
         }
     }
 
-    // Only for initialization, do not call more than once
     @Inject(
             method = "loadWithComponents",
             at = @At("TAIL")
@@ -98,9 +105,17 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 lastComponents = components;
                 DebugKt.debugLogger.invoke("init: saved lastComponents at " + worldPosition.toShortString() + ", cause=reden init, " + lastComponents);
             } else if (level != null) {
-                /*lastSavedNbt = this.saveWithId(level.registryAccess());
-                DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
-                */
+                try {
+                    var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
+                            net.minecraft.util.ProblemReporter.DISCARDING,
+                            level.registryAccess()
+                    );
+                    this.saveWithId(vo);
+                    lastSavedNbt = vo.buildResult();
+                    DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
+                } catch (Throwable t) {
+                    DebugKt.debugLogger.invoke("init: failed to save lastSavedNbt: " + t.getMessage());
+                }
             }
         } else {
             DebugKt.debugLogger.invoke("init: skip saving lastNBT at " + worldPosition.toShortString());

@@ -16,12 +16,15 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecordsMap
 import com.github.unstoppalezzz.reden.utils.debugLogger
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.core.BlockPos
+import net.minecraft.core.component.DataComponentMap
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.core.Direction
+import net.minecraft.world.level.block.Blocks
 
 /**
  * # Undo
@@ -74,6 +77,9 @@ import net.minecraft.world.level.block.state.BlockState
  * After the async changes are applied, reden will pop the UndoRecord from the stack by [popRecord].
  */
 object UndoMixinHelper {
+    /** When true, undo/redo is actively restoring world state and mixins should avoid recording changes. */
+    @JvmField
+    var isRestoring = false
     class UndoRecordEntry(val id: Long, val record: PlayerData.UndoRecord?, val reason: String)
     private var recordId = 20060210L
     val undoRecordsMap: MutableMap<Long, PlayerData.UndoRecord> = HashMap()
@@ -124,6 +130,7 @@ object UndoMixinHelper {
      */
     @JvmStatic
     fun monitorSetBlock(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
+        if (isRestoring) return
         debugLogger("id ${recording?.id ?: 0}: set$pos, ${world.getBlockState(pos)} -> $blockState")
         // update modified time, so undo can work properly
         world.modified(pos)
@@ -132,6 +139,58 @@ object UndoMixinHelper {
             (world.getChunk(pos).getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
             recording!!.fromWorld(world, pos, true)
         }
+        // If this is a comparator, also capture its immediate neighbors so
+        // downstream observers/pistons/redstone get cached for undo.
+        try {
+            if (blockState.block == Blocks.COMPARATOR) {
+                for (dir in Direction.values()) {
+                    try {
+                        val npos = pos.relative(dir)
+                        recording?.data?.computeIfAbsent(npos.asLong()) {
+                            (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
+                            recording!!.fromWorld(world, npos, true)
+                        }
+                    } catch (_: Throwable) { }
+                }
+                    // capture a small cubic area around the comparator (radius 3)
+                    for (dx in -3..3) {
+                        for (dy in -3..3) {
+                            for (dz in -3..3) {
+                                try {
+                                    val npos2 = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
+                                    recording?.data?.computeIfAbsent(npos2.asLong()) {
+                                        (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
+                                        recording!!.fromWorld(world, npos2, true)
+                                    }
+                                } catch (_: Throwable) { }
+                            }
+                        }
+                    }
+            }
+        } catch (_: Throwable) { }
+        // If we just recorded a new entry, write a small diagnostic dump for debugging
+        try {
+            val entry = recording?.data?.get(pos.asLong())
+            if (entry != null && entry.time == world.server.tickCount) {
+                val dumpDir = java.nio.file.Path.of("build/undo-dumps")
+                java.nio.file.Files.createDirectories(dumpDir)
+                val dumpFile = dumpDir.resolve("capture-${recording?.id}-${pos.x}_${pos.y}_${pos.z}-${System.currentTimeMillis()}.txt")
+                val sb = StringBuilder()
+                sb.append("capture dump for record ${recording?.id} pos=$pos\n")
+                sb.append("state=${entry.state}\n")
+                sb.append("beType=${entry.beType}\n")
+                sb.append("beDataType=${entry.beData?.let { it::class.java?.name } ?: "null"}\n")
+                sb.append("beDataSummary=")
+                when (val d = entry.beData) {
+                    is CompoundTag -> sb.append("CompoundTag(size=${d.size()}): ${d}")
+                    is DataComponentMap -> sb.append("DataComponentMap(${d})")
+                    null -> sb.append("null")
+                    else -> sb.append(d.toString())
+                }
+                java.nio.file.Files.writeString(dumpFile, sb.toString())
+                debugLogger("wrote capture diagnostic: $dumpFile")
+            }
+        } catch (_: Throwable) { }
         recording?.lastChangedTick = world.server.tickCount
     }
 
@@ -140,6 +199,7 @@ object UndoMixinHelper {
      */
     @JvmStatic
     fun monitorSetBlock(blockEntity: Any?) {
+        if (isRestoring) return
         if (blockEntity !is BlockEntity) return
         val world = blockEntity.level
         if (world is ServerLevel) {
@@ -151,6 +211,56 @@ object UndoMixinHelper {
                 (blockEntity as BlockEntityInterface).saveLastNbt()
                 recording!!.fromWorld(world, blockEntity.blockPos, true)
             }
+            // If this block entity is a comparator, also capture immediate neighbors
+            try {
+                if (blockEntity.blockState.block == Blocks.COMPARATOR) {
+                    for (dir in Direction.values()) {
+                        try {
+                            val npos = blockEntity.blockPos.relative(dir)
+                            recording?.data?.computeIfAbsent(npos.asLong()) {
+                                (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
+                                recording!!.fromWorld(world, npos, true)
+                            }
+                        } catch (_: Throwable) { }
+                    }
+                    // capture a small cubic area around the comparator block entity (radius 3)
+                    for (dx in -3..3) {
+                        for (dy in -3..3) {
+                            for (dz in -3..3) {
+                                try {
+                                    val npos2 = BlockPos(blockEntity.blockPos.x + dx, blockEntity.blockPos.y + dy, blockEntity.blockPos.z + dz)
+                                    recording?.data?.computeIfAbsent(npos2.asLong()) {
+                                        (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
+                                        recording!!.fromWorld(world, npos2, true)
+                                    }
+                                } catch (_: Throwable) { }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Throwable) { }
+            try {
+                val entry = recording?.data?.get(blockEntity.blockPos.asLong())
+                if (entry != null && entry.time == world.server.tickCount) {
+                    val dumpDir = java.nio.file.Path.of("build/undo-dumps")
+                    java.nio.file.Files.createDirectories(dumpDir)
+                    val dumpFile = dumpDir.resolve("capture-${recording?.id}-${blockEntity.blockPos.x}_${blockEntity.blockPos.y}_${blockEntity.blockPos.z}-${System.currentTimeMillis()}.txt")
+                    val sb = StringBuilder()
+                    sb.append("capture dump for record ${recording?.id} pos=${blockEntity.blockPos}\n")
+                    sb.append("state=${entry.state}\n")
+                    sb.append("beType=${entry.beType}\n")
+                    sb.append("beDataType=${entry.beData?.let { it::class.java?.name } ?: "null"}\n")
+                    sb.append("beDataSummary=")
+                    when (val d = entry.beData) {
+                        is CompoundTag -> sb.append("CompoundTag(size=${d.size()}): ${d}")
+                        is DataComponentMap -> sb.append("DataComponentMap(${d})")
+                        null -> sb.append("null")
+                        else -> sb.append(d.toString())
+                    }
+                    java.nio.file.Files.writeString(dumpFile, sb.toString())
+                    debugLogger("wrote capture diagnostic: $dumpFile")
+                }
+            } catch (_: Throwable) { }
             recording?.lastChangedTick = world.server.tickCount
         }
     }
@@ -169,6 +279,7 @@ object UndoMixinHelper {
      */
     @JvmStatic
     fun postSetBlock(world: ServerLevel, pos: BlockPos, finalState: BlockState, beChangeOnly: Boolean) {
+        if (isRestoring) return
         val be = world.getBlockEntity(pos) as BlockEntityInterface?
 //        if (be != null && RedenCarpetSettings.Options.undoBlockEntities) {
         if (be != null) {

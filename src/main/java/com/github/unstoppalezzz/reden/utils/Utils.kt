@@ -102,6 +102,46 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
     //?}
 }
 
+/**
+ * Set block state directly into chunk without triggering neighbor updates or client
+ * notifications. Use this when making many coordinated changes (like undo) and
+ * you plan to run neighbor updates afterwards.
+ */
+fun Level.setBlockSilent(pos: BlockPos, state: BlockState) {
+    val stateBefore = getBlockState(pos)
+    if (stateBefore.hasBlockEntity()) {
+        removeBlockEntity(pos)
+    }
+    getChunk(pos).run { getSection(getSectionIndex(pos.y)) }
+        .setBlockState(pos.x and 15, pos.y and 15, pos.z and 15, state, false)
+    getChunkAt(pos).run {
+        this.heightmaps[Heightmap.Types.MOTION_BLOCKING]!!.update(pos.x and 15, pos.y, pos.z and 15, state)
+        this.heightmaps[Heightmap.Types.MOTION_BLOCKING_NO_LEAVES]!!.update(
+            pos.x and 15,
+            pos.y,
+            pos.z and 15,
+            state
+        )
+        this.heightmaps[Heightmap.Types.OCEAN_FLOOR]!!.update(pos.x and 15, pos.y, pos.z and 15, state)
+        this.heightmaps[Heightmap.Types.WORLD_SURFACE]!!.update(pos.x and 15, pos.y, pos.z and 15, state)
+        markUnsaved()
+
+        if (!state.`is`(stateBefore.block) && stateBefore.hasBlockEntity()) {
+            this.removeBlockEntity(pos)
+        }
+
+        if (state.hasBlockEntity()) {
+            var blockEntity = this.getBlockEntity(pos, LevelChunk.EntityCreationType.CHECK)
+            if (blockEntity == null) {
+                blockEntity = (state.block as EntityBlock).newBlockEntity(pos, state)
+            }
+            if (blockEntity != null) {
+                this.setBlockEntity(blockEntity)
+            }
+        }
+    }
+}
+
 val isClient: Boolean get() = FabricLoader.getInstance().environmentType == EnvType.CLIENT
 
 object ResourceLoader {
