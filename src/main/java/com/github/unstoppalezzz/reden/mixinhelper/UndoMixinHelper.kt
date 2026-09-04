@@ -77,7 +77,6 @@ import net.minecraft.world.level.block.Blocks
  * After the async changes are applied, reden will pop the UndoRecord from the stack by [popRecord].
  */
 object UndoMixinHelper {
-    /** When true, undo/redo is actively restoring world state and mixins should avoid recording changes. */
     @JvmField
     var isRestoring = false
     class UndoRecordEntry(val id: Long, val record: PlayerData.UndoRecord?, val reason: String)
@@ -85,9 +84,7 @@ object UndoMixinHelper {
     val undoRecordsMap: MutableMap<Long, PlayerData.UndoRecord> = HashMap()
     internal val undoRecords = mutableListOf<UndoRecordEntry>()
 
-    /**
-     * Used for crash recovery.
-     */
+   
     fun cleanup() {
         undoRecordsMap.clear()
         undoRecords.clear()
@@ -128,12 +125,24 @@ object UndoMixinHelper {
      * @param pos the position of the block
      * @param blockState only be `null` if the state does not change
      */
+    private fun captureComparatorSnapshot(world: ServerLevel, pos: BlockPos) {
+        try {
+            val state = world.getBlockState(pos)
+            if (state.block != Blocks.COMPARATOR) return
+            val be = world.getBlockEntity(pos) as? BlockEntityInterface ?: return
+            be.saveLastNbt()
+        } catch (_: Throwable) {
+        }
+    }
+
     @JvmStatic
     fun monitorSetBlock(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
         if (isRestoring) return
         debugLogger("id ${recording?.id ?: 0}: set$pos, ${world.getBlockState(pos)} -> $blockState")
         // update modified time, so undo can work properly
         world.modified(pos)
+
+        captureComparatorSnapshot(world, pos)
 
         recording?.data?.computeIfAbsent(pos.asLong()) {
             (world.getChunk(pos).getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
@@ -152,20 +161,20 @@ object UndoMixinHelper {
                         }
                     } catch (_: Throwable) { }
                 }
-                    // capture a small cubic area around the comparator (radius 3)
-                    for (dx in -3..3) {
-                        for (dy in -3..3) {
-                            for (dz in -3..3) {
-                                try {
-                                    val npos2 = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
-                                    recording?.data?.computeIfAbsent(npos2.asLong()) {
-                                        (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
-                                        recording!!.fromWorld(world, npos2, true)
-                                    }
-                                } catch (_: Throwable) { }
-                            }
+                // Expand the comparator snapshot to include the neighboring redstone region.
+                for (dx in -5..5) {
+                    for (dy in -5..5) {
+                        for (dz in -5..5) {
+                            try {
+                                val npos2 = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
+                                recording?.data?.computeIfAbsent(npos2.asLong()) {
+                                    (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
+                                    recording!!.fromWorld(world, npos2, true)
+                                }
+                            } catch (_: Throwable) { }
                         }
                     }
+                }
             }
         } catch (_: Throwable) { }
         // If we just recorded a new entry, write a small diagnostic dump for debugging
@@ -207,6 +216,8 @@ object UndoMixinHelper {
             // update modified time, so undo can work properly
             world.modified(blockEntity.blockPos)
 
+            captureComparatorSnapshot(world, blockEntity.blockPos)
+
             recording?.data?.computeIfAbsent(blockEntity.blockPos.asLong()) {
                 (blockEntity as BlockEntityInterface).saveLastNbt()
                 recording!!.fromWorld(world, blockEntity.blockPos, true)
@@ -223,10 +234,10 @@ object UndoMixinHelper {
                             }
                         } catch (_: Throwable) { }
                     }
-                    // capture a small cubic area around the comparator block entity (radius 3)
-                    for (dx in -3..3) {
-                        for (dy in -3..3) {
-                            for (dz in -3..3) {
+                    // Expand the comparator snapshot to include the neighboring redstone region.
+                    for (dx in -5..5) {
+                        for (dy in -5..5) {
+                            for (dz in -5..5) {
                                 try {
                                     val npos2 = BlockPos(blockEntity.blockPos.x + dx, blockEntity.blockPos.y + dy, blockEntity.blockPos.z + dz)
                                     recording?.data?.computeIfAbsent(npos2.asLong()) {
@@ -398,11 +409,6 @@ object UndoMixinHelper {
         }
     }
 
-    /**
-     * starts at: [com.github.unstoppalezzz.reden.mixin.undo.MixinEntity.beforeEntitySpawn]
-     *
-     * ends at:   [com.github.unstoppalezzz.reden.mixin.undo.MixinServerWorld.afterSpawn]
-     */
     @JvmField var isInitializingEntity = false
 
     @JvmStatic

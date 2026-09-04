@@ -29,6 +29,16 @@ class Undo(
     override fun type() = ID
 
     companion object : PacketCodecHelper<Undo> by PacketCodec(Reden.identifier("undo")) {
+        private fun refreshComparatorState(world: ServerLevel, pos: BlockPos) {
+            try {
+                val state = world.getBlockState(pos)
+                if (state.block == net.minecraft.world.level.block.Blocks.COMPARATOR) {
+                    world.updateNeighbourForOutputSignal(pos, state.block)
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
         private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true) {
             debugLogger("undoing record ${record.id}, isUndo=$isUndo")
             record.data.forEach { (posLong, entry) ->
@@ -42,8 +52,8 @@ class Undo(
                 }
                 world.modified(pos, entry.time)
 
-                // Ignore normal block update propagation while restoring saved state.
                 world.setBlockNoPP(pos, entry.state)
+                refreshComparatorState(world, pos)
 //                world.syncedBlockEventQueue.removeIf { it.pos == pos }
 //                val blockTickScheduler = world.getChunk(pos).blockTickScheduler as ChunkTickScheduler
 //                val fluidTickScheduler = world.getChunk(pos).fluidTickScheduler as ChunkTickScheduler
