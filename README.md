@@ -19,6 +19,10 @@ This fork exists because the original project has not been updated in over a yea
 
 - [MaLiLib](https://modrinth.com/mod/malilib)
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin)
+  
+## Known issues
+
+- not restoring when a comparator is reading from a dropper / hopper circuit - fix in works 
       
 ## Credits
 
