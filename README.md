@@ -15,6 +15,15 @@ Reden-Reforged is a fork of the original Reden project, focused on improving the
 
 This fork exists because the original project has not been updated in over a year.
 
+## Dependencies
+
+- [MaLiLib](https://modrinth.com/mod/malilib)
+- [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin)
+  
+## Known issues
+
+- not restoring when a comparator is reading from a dropper / hopper circuit (only effect 26.1.2 and 26.2) - fix in works 
+      
 ## Credits
 
 Original project: [zly2006/reden-is-what-we-made](https://github.com/zly2006/reden-is-what-we-made)  
