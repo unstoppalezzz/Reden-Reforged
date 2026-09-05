@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 // @formatter:off
 //? if <= 1.21.1 {
 /*import net.minecraft.world.level.Level;
@@ -77,12 +78,12 @@ public class MixinExplosion implements UndoableAccess {
     }
 
     @Inject(method = "explode", at = @At("HEAD"))
-    private void beforeDamageEntities(CallbackInfo ci) {
+    private void beforeDamageEntities(CallbackInfoReturnable<?> ci) {
         UndoMixinHelper.pushRecord(undoId, () -> "explosion");
     }
 
     @Inject(method = "explode", at = @At("RETURN"))
-    private void afterDamageEntities(CallbackInfo ci) {
+    private void afterDamageEntities(CallbackInfoReturnable<?> ci) {
         UndoMixinHelper.popRecord(() -> "explosion");
     }
     //?}

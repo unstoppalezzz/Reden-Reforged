@@ -46,6 +46,66 @@ class Undo(
                 // if isRedo, the block is modified by the player operations, so we need to set the modify time to the current time
                 //  luckily, the redo record's time is the current time
                 world.setBlockNoPP(pos, entry.state)
+                // Only update adjacent comparators so they refresh their outputs
+                try {
+                    for (dir in net.minecraft.core.Direction.values()) {
+                        val np = pos.relative(dir)
+                        val ns = world.getBlockState(np)
+                        val b = ns.block
+                        if (b is net.minecraft.world.level.block.ComparatorBlock) {
+                            try {
+                                try {
+                                    val facing = ns.getValue(net.minecraft.world.level.block.ComparatorBlock.FACING)
+                                    var out = -1
+                                    try {
+                                        val cls = net.minecraft.world.level.block.ComparatorBlock::class.java
+                                        val m = cls.getDeclaredMethod("getAnalogOutputSignal", net.minecraft.world.level.block.state.BlockState::class.java, net.minecraft.world.level.Level::class.java, net.minecraft.core.BlockPos::class.java, net.minecraft.core.Direction::class.java)
+                                        m.isAccessible = true
+                                        out = (m.invoke(null, ns, world, np, facing) as Int)
+                                    } catch (e: NoSuchMethodException) {
+                                        try {
+                                            val cls2 = net.minecraft.world.level.block.entity.ComparatorBlockEntity::class.java
+                                            val m2 = cls2.getDeclaredMethod("getAnalogOutputSignal", net.minecraft.world.level.Level::class.java, net.minecraft.core.BlockPos::class.java, net.minecraft.core.Direction::class.java)
+                                            m2.isAccessible = true
+                                            out = (m2.invoke(null, world, np, facing) as Int)
+                                        } catch (e2: NoSuchMethodException) {
+                                            val beIns = world.getBlockEntity(np)
+                                            if (beIns is net.minecraft.world.level.block.entity.ComparatorBlockEntity) {
+                                                try {
+                                                    try {
+                                                        val m3 = beIns::class.java.getDeclaredMethod("getAnalogOutputSignal")
+                                                        m3.isAccessible = true
+                                                        out = (m3.invoke(beIns) as Int)
+                                                    } catch (nsme: NoSuchMethodException) {
+                                                        try {
+                                                            val m3 = beIns::class.java.getDeclaredMethod("getComparatorOutput")
+                                                            m3.isAccessible = true
+                                                            out = (m3.invoke(beIns) as Int)
+                                                        } catch (ignored: Throwable) {
+                                                        }
+                                                    }
+                                                } catch (ignored: Throwable) {
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (out >= 0) {
+                                        val be = world.getBlockEntity(np)
+                                        if (be is net.minecraft.world.level.block.entity.ComparatorBlockEntity) {
+                                            be.setOutputSignal(out)
+                                            // notify clients of block entity change
+                                            world.sendBlockUpdated(np, ns, ns, 3)
+                                        }
+                                    }
+                                } catch (ignored: Throwable) {
+                                }
+                            } catch (ignored: Throwable) {
+                            }
+                        }
+                    }
+                } catch (t: Throwable) {
+                    debugLogger("Failed to refresh adjacent comparators at $pos: $t")
+                }
                 // clear schedules
 //                world.syncedBlockEventQueue.removeIf { it.pos == pos }
 //                val blockTickScheduler = world.getChunk(pos).blockTickScheduler as ChunkTickScheduler

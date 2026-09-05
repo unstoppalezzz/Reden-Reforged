@@ -9,6 +9,8 @@ import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -48,10 +50,11 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
             if (isComponentsValid(components)) {
                 lastComponents = components;
                 DebugKt.debugLogger.invoke("saved lastComponents at " + worldPosition.toShortString() + ", cause=reden manually, " + lastComponents);
-            } else {
-                /*lastSavedNbt = this.saveWithId(level.registryAccess());
+            } else if (level != null) {
+                TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+                this.saveWithId(vo);
+                lastSavedNbt = vo.buildResult();
                 DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
-                */
             }
             lastSaveTime = level.getServer().getTickCount();
         }
@@ -59,7 +62,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
 
     @Unique
     private boolean isComponentsValid(DataComponentMap lastComponents) {
-        return false; // only has block state and block entity data, which are not useful for undo
+        return false; 
     }
 
     @Override
@@ -86,7 +89,6 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
         }
     }
 
-    // Only for initialization, do not call more than once
     @Inject(
             method = "loadWithComponents",
             at = @At("TAIL")
@@ -98,9 +100,10 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 lastComponents = components;
                 DebugKt.debugLogger.invoke("init: saved lastComponents at " + worldPosition.toShortString() + ", cause=reden init, " + lastComponents);
             } else if (level != null) {
-                /*lastSavedNbt = this.saveWithId(level.registryAccess());
+                TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+                this.saveWithId(vo);
+                lastSavedNbt = vo.buildResult();
                 DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
-                */
             }
         } else {
             DebugKt.debugLogger.invoke("init: skip saving lastNBT at " + worldPosition.toShortString());

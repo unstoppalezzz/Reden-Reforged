@@ -16,6 +16,8 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecordsMap
 import com.github.unstoppalezzz.reden.utils.debugLogger
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
+import net.minecraft.world.level.block.Blocks
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
@@ -132,6 +134,47 @@ object UndoMixinHelper {
             (world.getChunk(pos).getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
             recording!!.fromWorld(world, pos, true)
         }
+        // Also record adjacent comparators so their outputs are preserved in undo
+        try {
+            for (dir in net.minecraft.core.Direction.values()) {
+                val np = pos.relative(dir)
+                val ns = world.getBlockState(np)
+                val b = ns.block
+                if (b is net.minecraft.world.level.block.ComparatorBlock) {
+                    recording?.data?.computeIfAbsent(np.asLong()) {
+                        (world.getChunk(np).getBlockEntity(np) as? BlockEntityInterface)?.saveLastNbt()
+                        recording!!.fromWorld(world, np, true)
+                    }
+                }
+            }
+        } catch (_: Throwable) {
+        }
+        try {
+            if (blockState.block == Blocks.COMPARATOR) {
+                for (dir in Direction.values()) {
+                    try {
+                        val npos = pos.relative(dir)
+                        recording?.data?.computeIfAbsent(npos.asLong()) {
+                            (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
+                            recording!!.fromWorld(world, npos, true)
+                        }
+                    } catch (_: Throwable) { }
+                }
+                for (dx in -5..5) {
+                    for (dy in -5..5) {
+                        for (dz in -5..5) {
+                            try {
+                                val npos2 = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
+                                recording?.data?.computeIfAbsent(npos2.asLong()) {
+                                    (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
+                                    recording!!.fromWorld(world, npos2, true)
+                                }
+                            } catch (_: Throwable) { }
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) { }
         recording?.lastChangedTick = world.server.tickCount
     }
 
@@ -144,13 +187,53 @@ object UndoMixinHelper {
         val world = blockEntity.level
         if (world is ServerLevel) {
             debugLogger("id ${recording?.id ?: 0}: set${blockEntity.blockPos}, block entity ${blockEntity.blockState}")
-            // update modified time, so undo can work properly
             world.modified(blockEntity.blockPos)
 
             recording?.data?.computeIfAbsent(blockEntity.blockPos.asLong()) {
                 (blockEntity as BlockEntityInterface).saveLastNbt()
                 recording!!.fromWorld(world, blockEntity.blockPos, true)
             }
+            try {
+                for (dir in net.minecraft.core.Direction.values()) {
+                    val np = blockEntity.blockPos.relative(dir)
+                    val ns = world.getBlockState(np)
+                    val b = ns.block
+                    if (b is net.minecraft.world.level.block.ComparatorBlock) {
+                        recording?.data?.computeIfAbsent(np.asLong()) {
+                            (world.getChunk(np).getBlockEntity(np) as? BlockEntityInterface)?.saveLastNbt()
+                            recording!!.fromWorld(world, np, true)
+                        }
+                    }
+                }
+            } catch (_: Throwable) {
+            }
+            try {
+                if (blockEntity.blockState.block == Blocks.COMPARATOR) {
+                    for (dir in Direction.values()) {
+                        try {
+                            val npos = blockEntity.blockPos.relative(dir)
+                            recording?.data?.computeIfAbsent(npos.asLong()) {
+                                (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
+                                recording!!.fromWorld(world, npos, true)
+                            }
+                        } catch (_: Throwable) { }
+                    }
+                    // Expand the comparator snapshot to include the neighboring redstone region.
+                    for (dx in -5..5) {
+                        for (dy in -5..5) {
+                            for (dz in -5..5) {
+                                try {
+                                    val npos2 = BlockPos(blockEntity.blockPos.x + dx, blockEntity.blockPos.y + dy, blockEntity.blockPos.z + dz)
+                                    recording?.data?.computeIfAbsent(npos2.asLong()) {
+                                        (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
+                                        recording!!.fromWorld(world, npos2, true)
+                                    }
+                                } catch (_: Throwable) { }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Throwable) { }
             recording?.lastChangedTick = world.server.tickCount
         }
     }
@@ -170,7 +253,6 @@ object UndoMixinHelper {
     @JvmStatic
     fun postSetBlock(world: ServerLevel, pos: BlockPos, finalState: BlockState, beChangeOnly: Boolean) {
         val be = world.getBlockEntity(pos) as BlockEntityInterface?
-//        if (be != null && RedenCarpetSettings.Options.undoBlockEntities) {
         if (be != null) {
             val data = be.lastSavedNbt
             debugLogger("id ${recording?.id ?: 0}: set$pos, block entity lastSaved=$data")
