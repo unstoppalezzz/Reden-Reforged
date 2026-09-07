@@ -39,12 +39,21 @@ class Undo(
             }
         }
 
+        private fun refreshHopperState(world: ServerLevel, pos: BlockPos) {
+            try {
+                val state = world.getBlockState(pos)
+                if (state.block == net.minecraft.world.level.block.Blocks.HOPPER) {
+                    world.updateNeighbourForOutputSignal(pos, state.block)
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
         private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true) {
             debugLogger("undoing record ${record.id}, isUndo=$isUndo")
             record.data.forEach { (posLong, entry) ->
                 val pos = BlockPos.of(posLong)
                 debugLogger("undo ${pos}, ${entry.state}")
-                // set block
                 val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
                 if (sec.getModifyTime(pos) < entry.time && isUndo) {
                     debugLogger("undo $pos skipped (${sec.getModifyTime(pos)} < ${entry.time})")
@@ -54,11 +63,7 @@ class Undo(
 
                 world.setBlockNoPP(pos, entry.state)
                 refreshComparatorState(world, pos)
-//                world.syncedBlockEventQueue.removeIf { it.pos == pos }
-//                val blockTickScheduler = world.getChunk(pos).blockTickScheduler as ChunkTickScheduler
-//                val fluidTickScheduler = world.getChunk(pos).fluidTickScheduler as ChunkTickScheduler
-//                blockTickScheduler.removeTicksIf { it.pos == pos }
-//                fluidTickScheduler.removeTicksIf { it.pos == pos }
+                refreshHopperState(world, pos)
                 entry.beType?.let { beType ->
                     debugLogger("undo block entity ${pos}, $beType")
                     if (entry.state.hasBlockEntity()) {
@@ -116,7 +121,7 @@ class Undo(
 //?}
                         if (newEntity != null) {
                             newEntity.load(entry.nbt)
-                            redoRecord?.entities?.put(it.key, PlayerData.NotExistEntityEntry) // add entity info to redo record
+                            redoRecord?.entities?.put(it.key, PlayerData.NotExistEntityEntry)
                         }
                     }
                 } else {
@@ -147,7 +152,6 @@ class Undo(
                 if (last.data.isNotEmpty() || last.entities.isNotEmpty()) {
                     return last
                 }
-                // if the last record is empty, remove it
                 UndoMixinHelper.removeRecord(last.id)
                 this.removeLast()
             }
@@ -172,7 +176,7 @@ class Undo(
                 when (packet.status) {
                     0 -> view.undo.lastValid()?.let { undoRecord ->
                         view.undo.removeLast()
-                        UndoMixinHelper.removeRecord(undoRecord.id) // no longer monitoring rollbacked record
+                        UndoMixinHelper.removeRecord(undoRecord.id)
                         server.execute {
                             view.redo.add(
                                 PlayerData.RedoRecord(

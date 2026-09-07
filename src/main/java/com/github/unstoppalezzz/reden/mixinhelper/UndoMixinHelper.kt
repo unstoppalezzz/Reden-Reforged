@@ -1,5 +1,6 @@
 package com.github.unstoppalezzz.reden.mixinhelper
 
+import com.github.unstoppalezzz.reden.Reden
 import com.github.unstoppalezzz.reden.access.BlockEntityInterface
 import com.github.unstoppalezzz.reden.access.ChunkSectionInterface
 import com.github.unstoppalezzz.reden.access.PlayerData
@@ -23,6 +24,7 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.block.state.properties.BlockStateProperties
 import net.minecraft.core.Direction
 import net.minecraft.world.level.block.Blocks
 
@@ -135,6 +137,56 @@ object UndoMixinHelper {
         }
     }
 
+    private fun captureHopperSnapshot(world: ServerLevel, pos: BlockPos) {
+        try {
+            val state = world.getBlockState(pos)
+            if (state.block != Blocks.HOPPER) return
+            val be = world.getBlockEntity(pos) as? BlockEntityInterface ?: return
+            be.saveLastNbt()
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun captureNearbyRedstoneSnapshot(world: ServerLevel, pos: BlockPos) {
+        try {
+            val candidates = linkedSetOf<BlockPos>()
+            for (dx in -2..2) {
+                for (dy in -2..2) {
+                    for (dz in -2..2) {
+                        candidates += BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
+                    }
+                }
+            }
+
+            debugLogger("redstone snapshot: origin=$pos candidates=${candidates.size}")
+
+            for (candidate in candidates) {
+                val state = world.getBlockState(candidate)
+                val isRelevant = state.block == Blocks.NOTE_BLOCK ||
+                    state.block == Blocks.OBSERVER ||
+                    state.block == Blocks.COMPARATOR ||
+                    state.block == Blocks.HOPPER ||
+                    state.block == Blocks.PISTON ||
+                    state.block == Blocks.STICKY_PISTON ||
+                    state.block == Blocks.REDSTONE_WIRE ||
+                    state.block == Blocks.REPEATER ||
+                    state.block == Blocks.REDSTONE_TORCH
+                if (!isRelevant) continue
+
+                debugLogger("redstone snapshot candidate=$candidate block=${state.block} record=${recording?.id ?: 0}")
+
+                world.modified(candidate)
+                recording?.data?.computeIfAbsent(candidate.asLong()) {
+                    (world.getChunk(candidate).getBlockEntity(candidate) as? BlockEntityInterface)?.saveLastNbt()
+                    recording!!.fromWorld(world, candidate, true)
+                }
+            }
+
+        } catch (t: Throwable) {
+            Reden.LOGGER.warn("redstone snapshot failed at $pos", t)
+        }
+    }
+
     @JvmStatic
     fun monitorSetBlock(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
         if (isRestoring) return
@@ -143,6 +195,8 @@ object UndoMixinHelper {
         world.modified(pos)
 
         captureComparatorSnapshot(world, pos)
+        captureHopperSnapshot(world, pos)
+        captureNearbyRedstoneSnapshot(world, pos)
 
         recording?.data?.computeIfAbsent(pos.asLong()) {
             (world.getChunk(pos).getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
@@ -175,9 +229,31 @@ object UndoMixinHelper {
                         }
                     }
                 }
+            } else if (blockState.block == Blocks.HOPPER) {
+                for (dir in Direction.values()) {
+                    try {
+                        val npos = pos.relative(dir)
+                        recording?.data?.computeIfAbsent(npos.asLong()) {
+                            (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
+                            recording!!.fromWorld(world, npos, true)
+                        }
+                    } catch (_: Throwable) { }
+                }
+                for (dx in -5..5) {
+                    for (dy in -5..5) {
+                        for (dz in -5..5) {
+                            try {
+                                val npos2 = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
+                                recording?.data?.computeIfAbsent(npos2.asLong()) {
+                                    (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
+                                    recording!!.fromWorld(world, npos2, true)
+                                }
+                            } catch (_: Throwable) { }
+                        }
+                    }
+                }
             }
         } catch (_: Throwable) { }
-        // If we just recorded a new entry, write a small diagnostic dump for debugging
         try {
             val entry = recording?.data?.get(pos.asLong())
             if (entry != null && entry.time == world.server.tickCount) {
@@ -203,9 +279,7 @@ object UndoMixinHelper {
         recording?.lastChangedTick = world.server.tickCount
     }
 
-    /**
-     * Only for transformers to call.
-     */
+   
     @JvmStatic
     fun monitorSetBlock(blockEntity: Any?) {
         if (isRestoring) return
@@ -213,16 +287,16 @@ object UndoMixinHelper {
         val world = blockEntity.level
         if (world is ServerLevel) {
             debugLogger("id ${recording?.id ?: 0}: set${blockEntity.blockPos}, block entity ${blockEntity.blockState}")
-            // update modified time, so undo can work properly
             world.modified(blockEntity.blockPos)
 
             captureComparatorSnapshot(world, blockEntity.blockPos)
+            captureHopperSnapshot(world, blockEntity.blockPos)
+            captureNearbyRedstoneSnapshot(world, blockEntity.blockPos)
 
             recording?.data?.computeIfAbsent(blockEntity.blockPos.asLong()) {
                 (blockEntity as BlockEntityInterface).saveLastNbt()
                 recording!!.fromWorld(world, blockEntity.blockPos, true)
             }
-            // If this block entity is a comparator, also capture immediate neighbors
             try {
                 if (blockEntity.blockState.block == Blocks.COMPARATOR) {
                     for (dir in Direction.values()) {
@@ -234,7 +308,29 @@ object UndoMixinHelper {
                             }
                         } catch (_: Throwable) { }
                     }
-                    // Expand the comparator snapshot to include the neighboring redstone region.
+                    for (dx in -5..5) {
+                        for (dy in -5..5) {
+                            for (dz in -5..5) {
+                                try {
+                                    val npos2 = BlockPos(blockEntity.blockPos.x + dx, blockEntity.blockPos.y + dy, blockEntity.blockPos.z + dz)
+                                    recording?.data?.computeIfAbsent(npos2.asLong()) {
+                                        (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
+                                        recording!!.fromWorld(world, npos2, true)
+                                    }
+                                } catch (_: Throwable) { }
+                            }
+                        }
+                    }
+                } else if (blockEntity.blockState.block == Blocks.HOPPER) {
+                    for (dir in Direction.values()) {
+                        try {
+                            val npos = blockEntity.blockPos.relative(dir)
+                            recording?.data?.computeIfAbsent(npos.asLong()) {
+                                (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
+                                recording!!.fromWorld(world, npos, true)
+                            }
+                        } catch (_: Throwable) { }
+                    }
                     for (dx in -5..5) {
                         for (dy in -5..5) {
                             for (dz in -5..5) {
@@ -284,15 +380,10 @@ object UndoMixinHelper {
         getSection(getSectionIndex(pos.y)) as ChunkSectionInterface
     }.setModifyTime(pos, time)
 
-    /**
-     * @param beChangeOnly if only block entities changed, we have not recorded this change in [monitorSetBlock],
-     *   so we should record it here
-     */
     @JvmStatic
     fun postSetBlock(world: ServerLevel, pos: BlockPos, finalState: BlockState, beChangeOnly: Boolean) {
         if (isRestoring) return
         val be = world.getBlockEntity(pos) as BlockEntityInterface?
-//        if (be != null && RedenCarpetSettings.Options.undoBlockEntities) {
         if (be != null) {
             val data = be.lastSavedNbt
             debugLogger("id ${recording?.id ?: 0}: set$pos, block entity lastSaved=$data")
