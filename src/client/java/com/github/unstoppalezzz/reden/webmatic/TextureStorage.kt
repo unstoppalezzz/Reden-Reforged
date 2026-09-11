@@ -26,14 +26,13 @@ object TextureStorage {
             }
 
             httpClient.newCall(Request.Builder().apply {
-                Reden.LOGGER.info("Started getting image: $url")
                 ua()
                 get()
                 url(url)
             }.build()).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     if (e.message != "Canceled") {
-                        Reden.LOGGER.error("Failed request: ${call.request().url}", e)
+                        // request failures are intentionally silent
                     }
                 }
 
@@ -60,8 +59,8 @@ object TextureStorage {
                                 cache[url] = Result.success(texture)
                                 action(texture)
                             }
-                        } catch (e: Throwable) {
-                            Reden.LOGGER.error("Error reading image: $url", e)
+                        } catch (_: Throwable) {
+                            // image decode failures are intentionally silent
                         }
                     }
                 }

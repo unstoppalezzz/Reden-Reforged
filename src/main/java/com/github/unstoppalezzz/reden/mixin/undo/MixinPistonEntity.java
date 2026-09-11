@@ -3,7 +3,6 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
-import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -37,16 +36,12 @@ public class MixinPistonEntity implements UndoableAccess {
     @Inject(method = "finalTick", at = @At("HEAD"))
     private void beforeFinish(CallbackInfo ci) {
         if (undoId != 0) {
-            DebugKt.debugLogger.invoke("---Piston finishing, setting it to record "+ undoId);
-            //UpdateMonitorHelper.INSTANCE.setRecording(UpdateMonitorHelper.INSTANCE.getUndoRecordsMap().get(undoId));
         }
     }
 
     @Inject(method = "finalTick", at = @At("RETURN"))
     private void afterFinish(CallbackInfo ci) {
         if (undoId != 0) {
-            DebugKt.debugLogger.invoke("---Piston finished, removing it from record "+ undoId);
-            //UpdateMonitorHelper.INSTANCE.setRecording(null);
         }
     }
 }

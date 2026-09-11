@@ -75,16 +75,12 @@ class RedenServersideMixinPlugin : IExtension,  IMixinConfigPlugin {
     }
 
     override fun postApply(context: ITargetClassContext) {
-        if (context.classNode.name == "net/minecraft/server/commands/CloneCommands") {
-            LOGGER.warn("Found CloneCommands in ${context.classNode.name}, this class is not supported by Reden, please report this to the Reden team.")
-        }
         context.classNode.methods.forEach { method ->
             val instructions = method.instructions.toList()
             instructions.forEach {
                 if (it is MethodInsnNode  && it.desc == "()V" && (it.name.equals("method_31663") || (
                             it.owner.contains("BlockEntity") &&
                             it.name.equals("setChanged")))) {
-                    LOGGER.info("Found setChanged in ${context.classNode.name}.${method.name}, injecting Reden undo monitor.")
                     val prev = it.previous
                     val invoke = MethodInsnNode(
                         Opcodes.INVOKESTATIC,
@@ -104,7 +100,6 @@ class RedenServersideMixinPlugin : IExtension,  IMixinConfigPlugin {
                                 ))
                                 method.instructions.insertBefore(prev, invoke)
                             } else if (stores.size > 1) {
-                                LOGGER.warn("setChanged: stores.size > 1, this may not supported by Reden, please report this to the Reden team. Only method without jumps can be supported.")
                                 stores.last().let { store ->
                                     method.instructions.insertBefore(store, InsnNode(Opcodes.DUP))
                                     method.instructions.insertBefore(store, invoke)
@@ -116,28 +111,17 @@ class RedenServersideMixinPlugin : IExtension,  IMixinConfigPlugin {
                             }
                         }
                         prev is FieldInsnNode && prev.opcode == Opcodes.GETFIELD -> {
-                            //TODO
-                            LOGGER.error("setChanged: FieldInsnNode with GETFIELD is not supported by Reden, please report this to the Reden team. This may cause issues in undo/redo.")
                             val firstFieldNode = instructions.firstOrNull { it is FieldInsnNode && it.opcode == Opcodes.GETFIELD && it.name == prev.name }
-//                            method.instructions.insert(firstFieldNode, InsnNode(Opcodes.DUP))
-//                            method.instructions.insert(firstFieldNode, invoke)
                             method.instructions.insertBefore(
                                 method.instructions.first,
                                 LabelNode()
                             )
-//                            method.instructions.insertBefore(
-//                                method.instructions.first,
-//                                prev.clone(null)
-//                            )
                             method.instructions.insertBefore(
                                 method.instructions.first,
                                 LabelNode()
                             )
                             method.maxStack += 6
                             method.maxLocals += 4
-                        }
-                        else -> {
-                            LOGGER.error("This is likely a call to setChanged on an unknown object, which is not supported by Reden.")
                         }
                     }
                 }

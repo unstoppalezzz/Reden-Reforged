@@ -19,8 +19,6 @@ fun translateMessage(category: String, key: String, vararg args: Any): Component
 
 fun registerClientPackets() {
     ClientConfigurationNetworking.registerGlobalReceiver(HelloS2CPacket.ID) { packet, context ->
-        Reden.LOGGER.info("Hello from server: $packet")
-        Reden.LOGGER.info("Feature set: " + packet.featureSet.joinToString())
         packet.featureSet.forEach { name ->
             when (name) {
                 "undo" -> ClientPlayNetworking.registerGlobalReceiver(Undo.ID) { packet, context ->

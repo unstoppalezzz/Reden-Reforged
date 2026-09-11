@@ -2,7 +2,6 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.access.BlockEntityInterface;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
-import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentMap;
@@ -41,13 +40,11 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     @Override
     public void saveLastNbt$reden() {
         if (level != null && !level.isClientSide()) {
-            DebugKt.debugLogger.invoke("before saving lastNBT at " + worldPosition.toShortString() + ", nbt=" + lastSavedNbt + ", components=" + components);
             if (lastSaveTime == level.getServer().getTickCount()) {
                 return;
             }
             if (isComponentsValid(components)) {
                 lastComponents = components;
-                DebugKt.debugLogger.invoke("saved lastComponents at " + worldPosition.toShortString() + ", cause=reden manually, " + lastComponents);
             } else {
                 try {
                     var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
@@ -56,9 +53,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                     );
                     this.saveWithId(vo);
                     lastSavedNbt = vo.buildResult();
-                    DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
                 } catch (Throwable t) {
-                    DebugKt.debugLogger.invoke("failed to save lastSavedNbt: " + t.getMessage());
                 }
             }
             lastSaveTime = level.getServer().getTickCount();
@@ -73,13 +68,10 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     @Override
     public @Nullable Object getLastSavedNbt$reden() {
         if (isComponentsValid(lastComponents)) {
-            DebugKt.debugLogger.invoke("getLastSavedNbt at " + worldPosition.toShortString() + ", using lastComponents=" + lastComponents);
             return lastComponents;
         } else if (lastSavedNbt != null) {
-            DebugKt.debugLogger.invoke("getLastSavedNbt at " + worldPosition.toShortString() + ", using lastSavedNbt=" + lastSavedNbt);
             return lastSavedNbt;
         } else {
-            DebugKt.debugLogger.invoke("getLastSavedNbt at " + worldPosition.toShortString() + ", no saved data");
             return null;
         }
     }
@@ -99,11 +91,9 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
             at = @At("TAIL")
     )
     private void onReadNbt(CallbackInfo ci) {
-        DebugKt.debugLogger.invoke("init: before saving lastNBT at " + worldPosition.toShortString() + ", data=" + lastSavedNbt);
         if (lastSavedNbt == null && lastComponents == null) {
             if (isComponentsValid(components)) {
                 lastComponents = components;
-                DebugKt.debugLogger.invoke("init: saved lastComponents at " + worldPosition.toShortString() + ", cause=reden init, " + lastComponents);
             } else if (level != null) {
                 try {
                     var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
@@ -112,13 +102,9 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                     );
                     this.saveWithId(vo);
                     lastSavedNbt = vo.buildResult();
-                    DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
                 } catch (Throwable t) {
-                    DebugKt.debugLogger.invoke("init: failed to save lastSavedNbt: " + t.getMessage());
                 }
             }
-        } else {
-            DebugKt.debugLogger.invoke("init: skip saving lastNBT at " + worldPosition.toShortString());
         }
     }
 }

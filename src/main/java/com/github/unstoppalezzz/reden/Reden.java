@@ -5,21 +5,19 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.NOPLogger;
 import com.github.unstoppalezzz.reden.network.ChannelsKt;
-import com.github.unstoppalezzz.reden.utils.DebugKt;
 
 public class Reden implements ModInitializer {
-    public static final Logger LOGGER = LoggerFactory.getLogger("template");
     public static final String MOD_VERSION = /*$ mod_version*/ "0.10.4";
     public static final String MOD_ID = "reden";
     public static final String MOD_NAME = "Reden";
+    public static final Logger LOGGER = NOPLogger.NOP_LOGGER;
 
     @Override
     public void onInitialize() {
         ChannelsKt.registerChannelServer();
         ServerLifecycleEvents.SERVER_STARTED.register(UtilsKt::setServer);
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> DebugKt.startDebugAppender());
     }
 
     private ClassLoader hijackClassLoader() {

@@ -113,12 +113,10 @@ class MevScreen : BaseOwoScreen<FlowLayout>() {
             else {
                 url("https://redenmc.com/api/mc-services/yisibite/?lang=$lang&page=$page")
             }
-        }.build()).apply {
-            Reden.LOGGER.info("Started request: ${request().url}")
-        }.enqueue(object : Callback {
+        }.build()).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                if (e.message != "Canceled") {
-                    Reden.LOGGER.error("Failed request: ${call.request().url}", e)
+                if (e.message == "Canceled") {
+                    return
                 }
             }
 

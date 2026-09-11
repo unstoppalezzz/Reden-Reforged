@@ -3,7 +3,6 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
-import com.github.unstoppalezzz.reden.utils.DebugKt;
 import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.ticks.LevelTicks;
@@ -53,7 +52,6 @@ public class MixinSchedule {
     private <T> void onAddSchedule(ScheduledTick<T> scheduledTick, CallbackInfo ci) {
         PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
         if (recording != null) {
-            DebugKt.debugLogger.invoke("Scheduled tick at " + scheduledTick.pos() + ", adding it into record " + recording.getId());
             // inherit parent id
             ((UndoableAccess) scheduledTick).setUndoId$reden(recording.getId());
         }

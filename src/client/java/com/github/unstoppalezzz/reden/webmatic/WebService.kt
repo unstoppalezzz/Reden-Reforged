@@ -52,7 +52,6 @@ val httpClient = OkHttpClient.Builder().apply {
             maxSize = 100L * 1024L * 1024L // 100 MiB
         )
     )
-    Logger.getLogger(OkHttpClient::class.java.name).level = Level.FINE
 }.build()
 
 inline fun <reified T> Request.Builder.json(data: T) = apply {

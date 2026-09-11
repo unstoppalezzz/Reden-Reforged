@@ -7,7 +7,6 @@ import com.github.unstoppalezzz.reden.access.PlayerData
 import com.github.unstoppalezzz.reden.access.PlayerData.Companion.data
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.modified
-import com.github.unstoppalezzz.reden.utils.debugLogger
 import com.github.unstoppalezzz.reden.utils.multiver.*
 import com.github.unstoppalezzz.reden.utils.server
 import com.github.unstoppalezzz.reden.utils.setBlockNoPP
@@ -21,6 +20,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.entity.Mob
+import net.minecraft.world.entity.item.PrimedTnt
 
 @Serializable
 class Undo(
@@ -49,68 +49,125 @@ class Undo(
             }
         }
 
+        private fun refreshRedstoneNeighbors(world: ServerLevel, pos: BlockPos, block: net.minecraft.world.level.block.Block) {
+            try {
+                world.updateNeighborsAt(pos, block)
+            } catch (_: Throwable) {
+            }
+            try {
+                world.updateNeighbourForOutputSignal(pos, block)
+            } catch (_: Throwable) {
+            }
+
+            for (dir in net.minecraft.core.Direction.values()) {
+                val neighborPos = pos.relative(dir)
+                val neighborState = world.getBlockState(neighborPos)
+                try {
+                    world.updateNeighborsAt(neighborPos, neighborState.block)
+                } catch (_: Throwable) {
+                }
+                try {
+                    if (neighborState.hasAnalogOutputSignal()) {
+                        world.updateNeighbourForOutputSignal(neighborPos, neighborState.block)
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+        }
+
+        private fun destroyPrimedTntAt(world: ServerLevel, pos: BlockPos) {
+            val center = net.minecraft.world.phys.Vec3.atCenterOf(pos)
+            val tntEntities = world.getEntitiesOfClass(
+                PrimedTnt::class.java,
+                net.minecraft.world.phys.AABB.ofSize(center, 1.5, 1.5, 1.5)
+            ) { entity -> entity.blockPosition() == pos || entity.position().distanceToSqr(center) < 1.0 }
+
+            if (tntEntities.isNotEmpty()) {
+                tntEntities.forEach { it.discard() }
+            }
+        }
+
         private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true) {
-            debugLogger("undoing record ${record.id}, isUndo=$isUndo")
+            val restoredPositions = mutableListOf<BlockPos>()
             record.data.forEach { (posLong, entry) ->
                 val pos = BlockPos.of(posLong)
-                debugLogger("undo ${pos}, ${entry.state}")
+                val currentState = world.getBlockState(pos)
                 val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
                 if (sec.getModifyTime(pos) < entry.time && isUndo) {
-                    debugLogger("undo $pos skipped (${sec.getModifyTime(pos)} < ${entry.time})")
                     return@forEach
                 }
                 world.modified(pos, entry.time)
 
                 world.setBlockNoPP(pos, entry.state)
-                refreshComparatorState(world, pos)
-                refreshHopperState(world, pos)
+                restoredPositions += pos
+                val restoredState = world.getBlockState(pos)
+                if (entry.state.block == net.minecraft.world.level.block.Blocks.TNT || restoredState.block == net.minecraft.world.level.block.Blocks.TNT) {
+                    destroyPrimedTntAt(world, pos)
+                }
                 entry.beType?.let { beType ->
-                    debugLogger("undo block entity ${pos}, $beType")
-                    if (entry.state.hasBlockEntity()) {
-                        val be = beType.create(pos, entry.state)
-                        val beData = entry.beData
-                        if (beData == null) return@let
-
-                        when (beData) {
-                            is CompoundTag -> {
-                                //? if <= 1.21.5 {
-                                /*be.loadWithComponents(beData, world.registryAccess())
-                                *///?} elif >= 1.21.6 {
-                                be.loadWithComponents(
-                                    net.minecraft.world.level.storage.TagValueInput.create(
-                                        net.minecraft.util.ProblemReporter.DISCARDING,
-                                        world.registryAccess(),
-                                        beData
-                                    )
-                                )
-                                //?}
-                            }
-
-                            is DataComponentMap -> {
-                                val prototype = entry.state.block.asItem().components()
-                                be.applyComponents(prototype, DataComponentPatch.builder().apply {
-                                    beData.forEach { typedDataComponent ->
-                                        this.set(typedDataComponent)
-                                    }
-                                }.build())
-                            }
-
-                            else -> {
-                                throw IllegalArgumentException("Unsupported block entity data type: ${beData::class.java}")
-                            }
-                        }
-                        world.setBlockEntity(be)
-                        (world.getBlockEntity(pos) as BlockEntityInterface).saveLastNbt()
+                    if (!entry.state.hasBlockEntity()) {
+                        return@let
                     }
+
+                    val currentState = world.getBlockState(pos)
+                    if (currentState.isAir || !currentState.`is`(entry.state.block)) {
+                        return@let
+                    }
+
+                    val be = beType.create(pos, entry.state)
+                    if (be == null) {
+                        return@let
+                    }
+
+                    val beData = entry.beData
+                    if (beData == null) {
+                        world.setBlockEntity(be)
+                        (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
+                        return@let
+                    }
+
+                    when (beData) {
+                        is CompoundTag -> {
+                            //? if <= 1.21.5 {
+                            /*be.loadWithComponents(beData, world.registryAccess())
+                            *///?} elif >= 1.21.6 {
+                            be.loadWithComponents(
+                                net.minecraft.world.level.storage.TagValueInput.create(
+                                    net.minecraft.util.ProblemReporter.DISCARDING,
+                                    world.registryAccess(),
+                                    beData
+                                )
+                            )
+                            //?}
+                        }
+
+                        is DataComponentMap -> {
+                            val prototype = entry.state.block.asItem().components()
+                            be.applyComponents(prototype, DataComponentPatch.builder().apply {
+                                beData.forEach { typedDataComponent ->
+                                    this.set(typedDataComponent)
+                                }
+                            }.build())
+                        }
+
+                        else -> {
+                            throw IllegalArgumentException("Unsupported block entity data type: ${beData::class.java}")
+                        }
+                    }
+                    world.setBlockEntity(be)
+                    (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
                 }
             }
-   
+
+            restoredPositions.forEach { pos ->
+                refreshRedstoneNeighbors(world, pos, world.getBlockState(pos).block)
+            }
+
             record.entities.forEach {
                 val entity = world.getEntity(it.key)
                 if (entity == null) {
                     if (it.value != PlayerData.NotExistEntityEntry) {
                         val entry = it.value
-                        debugLogger("undo entity ${it.key} spawning")
                         val newEntity = entry.entity!!.spawn(world, { newEntity ->
                             newEntity.uuid = it.key
                         },
@@ -133,11 +190,9 @@ class Undo(
                         )
                     )
                     if (it.value == PlayerData.NotExistEntityEntry) {
-                        debugLogger("undo entity ${it.key} removing")
                         entity.discard()
                     } else {
                         val entry = it.value
-                        debugLogger("undo entity ${it.key} reading nbt")
                         if (entity is Mob) {
                             entity.removeFreeWill()
                         }
@@ -169,7 +224,6 @@ class Undo(
                 }
                 UndoMixinHelper.playerStopRecording(context.player())
                 if (UndoMixinHelper.recording != null) {
-                    Reden.LOGGER.error("Undo when a record is still active, id=" + UndoMixinHelper.recording?.id)
                     // 不取消跟踪会导致undo的更改也被记录，边读边写异常
                     UndoMixinHelper.undoRecords.clear()
                 }

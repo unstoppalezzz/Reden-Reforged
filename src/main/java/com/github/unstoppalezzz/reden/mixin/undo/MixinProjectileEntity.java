@@ -3,7 +3,6 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
-import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -50,7 +49,6 @@ public abstract class MixinProjectileEntity extends Entity implements UndoableAc
         if (!level.isClientSide()) {
             PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
             if (recording != null) {
-                DebugKt.debugLogger.invoke("Projectile spawned, adding it into record " + recording.getId());
                 setUndoId$reden(recording.getId());
             }
         }

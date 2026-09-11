@@ -5,6 +5,7 @@ import com.github.unstoppalezzz.reden.access.BlockEntityInterface
 import com.github.unstoppalezzz.reden.access.ChunkSectionInterface
 import com.github.unstoppalezzz.reden.access.PlayerData
 import com.github.unstoppalezzz.reden.access.PlayerData.Companion.data
+import com.github.unstoppalezzz.reden.access.UndoableAccess
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.monitorSetBlock
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.playerStartRecording
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.playerStopRecording
@@ -14,7 +15,6 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.recordId
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.recording
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecords
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecordsMap
-import com.github.unstoppalezzz.reden.utils.debugLogger
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.core.BlockPos
 import net.minecraft.core.component.DataComponentMap
@@ -22,63 +22,103 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Entity
+import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.state.properties.BlockStateProperties
 import net.minecraft.core.Direction
 import net.minecraft.world.level.block.Blocks
 
-/**
- * # Undo
- *
- * This is the handler for undo feature.
- *
- * ## Players
- *
- * When players do some operation that is tracked by reden,
- * reden will create a backup (we call it `UndoRecord`, see [com.github.unstoppalezzz.reden.access.PlayerData.UndoRecord]) for it.
- * Player tracking starts at [playerStartRecording], and ends at [playerStopRecording].
- *
- * Then all changes will be recorded in the UndoRecord.
- * If the player wants to undo the operation, reden will restore the UndoRecord to the world.
- *
- * The id of the UndoRecord is unique (see [recordId]), and it will be used to identify the UndoRecord by [undoRecordsMap].
- *
- * ## Undo Record
- *
- * the current available UndoRecords are stored in [undoRecords].
- * It is a stack and the top is the current UndoRecord([recording]).
- *
- * ## Blocks
- *
- * Each time your world changes, reden will add the state before the change to the UndoRecord,
- * see [com.github.unstoppalezzz.reden.access.PlayerData.UndoRedoRecord.fromWorld].
- *
- * If you want to know how reden monitors block changes, see [monitorSetBlock].
- *
- * ## Entities
- *
- * For entities, we monitor all [net.minecraft.entity.data.TrackedData] changes.
- * see [com.github.unstoppalezzz.reden.mixin.undo.MixinDataTracker.beforeDataSet]
- *
- * ## Async changes
- *
- * (idk how to describe things like BE and scheduled tick that dont make changes immediately, just call them async changes)
- *
- * Primed TNTs, block events, scheduled ticks, they dont make changes immediately.
- *
- * So reden added a field [com.github.unstoppalezzz.reden.access.UndoableAccess.undoId] for them.
- *
- * When they are created, reden will assign them an undo id from [recording].
- *
- * When the async changes are applied, reden will check if the id is in the [undoRecordsMap].
- *
- * If it is, reden will push the specified UndoRecord to the stack by [pushRecord].
- * Then the game continues to process, making more changes.
- * And all changes will be recorded to the UndoRecord.
- * After the async changes are applied, reden will pop the UndoRecord from the stack by [popRecord].
- */
+
 object UndoMixinHelper {
+    private const val PRIMARY_CAPTURE_RADIUS = 2
+    private const val SECONDARY_CAPTURE_RADIUS = 3
+
+    private var throttleTick = Int.MIN_VALUE
+    private val genericOriginsExpandedThisTick = mutableSetOf<Long>()
+
+    private fun resetPerTickThrottlesIfNeeded(tick: Int) {
+        if (tick != throttleTick) {
+            throttleTick = tick
+            genericOriginsExpandedThisTick.clear()
+        }
+    }
+
+    private fun shouldSkipGenericSnapshotOrigin(world: ServerLevel, origin: BlockPos, isDirectTrigger: Boolean): Boolean {
+        if (isDirectTrigger) return false
+        resetPerTickThrottlesIfNeeded(world.server.tickCount)
+        return !genericOriginsExpandedThisTick.add(origin.asLong())
+    }
+
+    private fun collectNearbyCapturePositions(origin: BlockPos, radius: Int): LinkedHashSet<BlockPos> {
+        val positions = linkedSetOf<BlockPos>()
+        for (dx in -radius..radius) {
+            for (dy in -radius..radius) {
+                for (dz in -radius..radius) {
+                    positions += BlockPos(origin.x + dx, origin.y + dy, origin.z + dz)
+                }
+            }
+        }
+        return positions
+    }
+
+    private fun collectPrimaryCapturePositions(origin: BlockPos): LinkedHashSet<BlockPos> =
+        collectNearbyCapturePositions(origin, PRIMARY_CAPTURE_RADIUS)
+
+    private fun collectSecondaryCapturePositions(origin: BlockPos): LinkedHashSet<BlockPos> {
+        val primary = collectPrimaryCapturePositions(origin)
+        val secondary = collectNearbyCapturePositions(origin, SECONDARY_CAPTURE_RADIUS)
+        secondary.removeAll(primary)
+        return secondary
+    }
+
+    private fun collectExpandedCapturePositions(origin: BlockPos): LinkedHashSet<BlockPos> {
+        return collectNearbyCapturePositions(origin, SECONDARY_CAPTURE_RADIUS)
+    }
+
+    private fun isRelevantRedstoneComponent(state: BlockState): Boolean {
+        val block = state.block
+        return state.hasAnalogOutputSignal() ||
+            block is net.minecraft.world.level.block.DiodeBlock ||
+            block is net.minecraft.world.level.block.ObserverBlock ||
+            block is net.minecraft.world.level.block.LeverBlock ||
+            block is net.minecraft.world.level.block.ButtonBlock ||
+            block is net.minecraft.world.level.block.PressurePlateBlock ||
+            block is net.minecraft.world.level.block.RedstoneTorchBlock ||
+            block is net.minecraft.world.level.block.RedStoneWireBlock ||
+            block is net.minecraft.world.level.block.TargetBlock ||
+            block is net.minecraft.world.level.block.NoteBlock ||
+            block is net.minecraft.world.level.block.TripWireBlock ||
+            block is net.minecraft.world.level.block.TripWireHookBlock ||
+            block is net.minecraft.world.level.block.DaylightDetectorBlock ||
+            block is net.minecraft.world.level.block.RedstoneLampBlock ||
+            block is net.minecraft.world.level.block.BaseRailBlock ||
+            block is net.minecraft.world.level.block.piston.PistonBaseBlock ||
+            block is net.minecraft.world.level.block.piston.PistonHeadBlock ||
+            block is net.minecraft.world.level.block.piston.MovingPistonBlock
+    }
+
+    private fun shouldRunRedstoneNeighborhoodScan(state: BlockState): Boolean {
+        val block = state.block
+        return block is net.minecraft.world.level.block.DiodeBlock ||
+            block is net.minecraft.world.level.block.ObserverBlock ||
+            block is net.minecraft.world.level.block.LeverBlock ||
+            block is net.minecraft.world.level.block.ButtonBlock ||
+            block is net.minecraft.world.level.block.PressurePlateBlock ||
+            block is net.minecraft.world.level.block.RedstoneTorchBlock ||
+            block is net.minecraft.world.level.block.TargetBlock ||
+            block is net.minecraft.world.level.block.NoteBlock ||
+            block is net.minecraft.world.level.block.TripWireBlock ||
+            block is net.minecraft.world.level.block.TripWireHookBlock ||
+            block is net.minecraft.world.level.block.DaylightDetectorBlock ||
+            block is net.minecraft.world.level.block.RedstoneLampBlock ||
+            block is net.minecraft.world.level.block.BaseRailBlock ||
+            block is net.minecraft.world.level.block.piston.PistonBaseBlock ||
+            block is net.minecraft.world.level.block.piston.PistonHeadBlock ||
+            block is net.minecraft.world.level.block.piston.MovingPistonBlock ||
+            block == Blocks.HOPPER
+    }
+
     @JvmField
     var isRestoring = false
     class UndoRecordEntry(val id: Long, val record: PlayerData.UndoRecord?, val reason: String)
@@ -86,7 +126,7 @@ object UndoMixinHelper {
     val undoRecordsMap: MutableMap<Long, PlayerData.UndoRecord> = HashMap()
     internal val undoRecords = mutableListOf<UndoRecordEntry>()
 
-   
+
     fun cleanup() {
         undoRecordsMap.clear()
         undoRecords.clear()
@@ -98,8 +138,6 @@ object UndoMixinHelper {
     @JvmStatic
     fun pushRecord(id: Long, reasonSupplier: () -> String): Boolean {
         val reason = reasonSupplier()
-        if (filterLogById(id))
-            debugLogger("[${undoRecords.size + 1}] id $id: push, $reason")
         return undoRecords.add(
             UndoRecordEntry(
                 id,
@@ -111,8 +149,6 @@ object UndoMixinHelper {
     @JvmStatic
     fun popRecord(reasonSupplier: () -> String): UndoRecordEntry {
         val reason = reasonSupplier()
-        if (filterLogById(undoRecords.last().id))
-            debugLogger("[${undoRecords.size}] id ${undoRecords.last().id}: pop, $reason")
         if (reason != undoRecords.last().reason) {
             throw IllegalStateException("Cannot pop record with different reason: $reason != ${undoRecords.last().reason}")
         }
@@ -120,13 +156,24 @@ object UndoMixinHelper {
     }
     val recording: PlayerData.UndoRecord? get() = undoRecords.lastOrNull()?.record
 
-    /**
-     * Monitor block changes.
-     *
-     * @param world the world where the block is changed
-     * @param pos the position of the block
-     * @param blockState only be `null` if the state does not change
-     */
+    private fun captureBaselineIfAbsent(
+        world: ServerLevel,
+        pos: BlockPos,
+        transform: (PlayerData.Entry) -> PlayerData.Entry = { it }
+    ) {
+        val rec = recording ?: return
+        val key = pos.asLong()
+        if (rec.data.containsKey(key)) return
+        world.modified(pos)
+        val be = world.getChunk(pos).getBlockEntity(pos)
+        if (be is net.minecraft.world.level.block.entity.HopperBlockEntity) {
+            (be as? UndoableAccess)?.undoId = rec.id
+        }
+        (be as? BlockEntityInterface)?.saveLastNbt()
+        val entry = transform(rec.fromWorld(world, pos, true))
+        rec.data.putIfAbsent(key, entry)
+    }
+
     private fun captureComparatorSnapshot(world: ServerLevel, pos: BlockPos) {
         try {
             val state = world.getBlockState(pos)
@@ -147,227 +194,106 @@ object UndoMixinHelper {
         }
     }
 
-    private fun captureNearbyRedstoneSnapshot(world: ServerLevel, pos: BlockPos) {
-        try {
-            val candidates = linkedSetOf<BlockPos>()
-            for (dx in -2..2) {
-                for (dy in -2..2) {
-                    for (dz in -2..2) {
-                        candidates += BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
-                    }
+    private fun captureNearbyComparatorOrHopperNeighbors(world: ServerLevel, pos: BlockPos) {
+        for (dir in Direction.values()) {
+            val npos = pos.relative(dir)
+            captureBaselineIfAbsent(world, npos)
+        }
+
+        val localCandidates = linkedSetOf<BlockPos>()
+        for (dx in -2..2) {
+            for (dy in -2..2) {
+                for (dz in -2..2) {
+                    if (dx == 0 && dy == 0 && dz == 0) continue
+                    localCandidates += BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
                 }
             }
+        }
 
-            debugLogger("redstone snapshot: origin=$pos candidates=${candidates.size}")
+        for (candidate in localCandidates) {
+            val state = world.getBlockState(candidate)
+            if (state.block == Blocks.AIR) continue
+            if (isRelevantRedstoneComponent(state) || state.block == Blocks.HOPPER || state.block == Blocks.COMPARATOR) {
+                captureBaselineIfAbsent(world, candidate)
+            }
+        }
+    }
 
+    private fun captureNearbyRedstoneSnapshot(
+        world: ServerLevel,
+        pos: BlockPos,
+        isDirectTrigger: Boolean = true,
+        visitedThisPass: MutableSet<Long> = mutableSetOf()
+    ) {
+        try {
+            if (!visitedThisPass.add(pos.asLong())) {
+                return
+            }
+
+            val originSkip = shouldSkipGenericSnapshotOrigin(world, pos, isDirectTrigger)
+            if (originSkip) {
+                return
+            }
+
+            val candidates = collectPrimaryCapturePositions(pos)
             for (candidate in candidates) {
                 val state = world.getBlockState(candidate)
-                val isRelevant = state.block == Blocks.NOTE_BLOCK ||
-                    state.block == Blocks.OBSERVER ||
-                    state.block == Blocks.COMPARATOR ||
-                    state.block == Blocks.HOPPER ||
-                    state.block == Blocks.PISTON ||
-                    state.block == Blocks.STICKY_PISTON ||
-                    state.block == Blocks.REDSTONE_WIRE ||
-                    state.block == Blocks.REPEATER ||
-                    state.block == Blocks.REDSTONE_TORCH
-                if (!isRelevant) continue
-
-                debugLogger("redstone snapshot candidate=$candidate block=${state.block} record=${recording?.id ?: 0}")
-
-                world.modified(candidate)
-                recording?.data?.computeIfAbsent(candidate.asLong()) {
-                    (world.getChunk(candidate).getBlockEntity(candidate) as? BlockEntityInterface)?.saveLastNbt()
-                    recording!!.fromWorld(world, candidate, true)
+                if (state.block == Blocks.AIR) continue
+                if (candidate == pos || isRelevantRedstoneComponent(state)) {
+                    captureBaselineIfAbsent(world, candidate)
                 }
             }
 
-        } catch (t: Throwable) {
-            Reden.LOGGER.warn("redstone snapshot failed at $pos", t)
+        } catch (_: Throwable) {
         }
     }
 
     @JvmStatic
     fun monitorSetBlock(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
         if (isRestoring) return
-        debugLogger("id ${recording?.id ?: 0}: set$pos, ${world.getBlockState(pos)} -> $blockState")
-        // update modified time, so undo can work properly
         world.modified(pos)
+
+        if (recording == null) return
 
         captureComparatorSnapshot(world, pos)
         captureHopperSnapshot(world, pos)
-        captureNearbyRedstoneSnapshot(world, pos)
-
-        recording?.data?.computeIfAbsent(pos.asLong()) {
-            (world.getChunk(pos).getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
-            recording!!.fromWorld(world, pos, true)
+        if (shouldRunRedstoneNeighborhoodScan(blockState)) {
+            captureNearbyRedstoneSnapshot(world, pos)
         }
-        // If this is a comparator, also capture its immediate neighbors so
-        // downstream observers/pistons/redstone get cached for undo.
+
+        captureBaselineIfAbsent(world, pos)
         try {
-            if (blockState.block == Blocks.COMPARATOR) {
-                for (dir in Direction.values()) {
-                    try {
-                        val npos = pos.relative(dir)
-                        recording?.data?.computeIfAbsent(npos.asLong()) {
-                            (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
-                            recording!!.fromWorld(world, npos, true)
-                        }
-                    } catch (_: Throwable) { }
-                }
-                // Expand the comparator snapshot to include the neighboring redstone region.
-                for (dx in -5..5) {
-                    for (dy in -5..5) {
-                        for (dz in -5..5) {
-                            try {
-                                val npos2 = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
-                                recording?.data?.computeIfAbsent(npos2.asLong()) {
-                                    (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
-                                    recording!!.fromWorld(world, npos2, true)
-                                }
-                            } catch (_: Throwable) { }
-                        }
-                    }
-                }
-            } else if (blockState.block == Blocks.HOPPER) {
-                for (dir in Direction.values()) {
-                    try {
-                        val npos = pos.relative(dir)
-                        recording?.data?.computeIfAbsent(npos.asLong()) {
-                            (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
-                            recording!!.fromWorld(world, npos, true)
-                        }
-                    } catch (_: Throwable) { }
-                }
-                for (dx in -5..5) {
-                    for (dy in -5..5) {
-                        for (dz in -5..5) {
-                            try {
-                                val npos2 = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
-                                recording?.data?.computeIfAbsent(npos2.asLong()) {
-                                    (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
-                                    recording!!.fromWorld(world, npos2, true)
-                                }
-                            } catch (_: Throwable) { }
-                        }
-                    }
-                }
+            if (blockState.block == Blocks.COMPARATOR || blockState.block == Blocks.HOPPER) {
+                captureNearbyComparatorOrHopperNeighbors(world, pos)
             }
-        } catch (_: Throwable) { }
-        try {
-            val entry = recording?.data?.get(pos.asLong())
-            if (entry != null && entry.time == world.server.tickCount) {
-                val dumpDir = java.nio.file.Path.of("build/undo-dumps")
-                java.nio.file.Files.createDirectories(dumpDir)
-                val dumpFile = dumpDir.resolve("capture-${recording?.id}-${pos.x}_${pos.y}_${pos.z}-${System.currentTimeMillis()}.txt")
-                val sb = StringBuilder()
-                sb.append("capture dump for record ${recording?.id} pos=$pos\n")
-                sb.append("state=${entry.state}\n")
-                sb.append("beType=${entry.beType}\n")
-                sb.append("beDataType=${entry.beData?.let { it::class.java?.name } ?: "null"}\n")
-                sb.append("beDataSummary=")
-                when (val d = entry.beData) {
-                    is CompoundTag -> sb.append("CompoundTag(size=${d.size()}): ${d}")
-                    is DataComponentMap -> sb.append("DataComponentMap(${d})")
-                    null -> sb.append("null")
-                    else -> sb.append(d.toString())
-                }
-                java.nio.file.Files.writeString(dumpFile, sb.toString())
-                debugLogger("wrote capture diagnostic: $dumpFile")
-            }
-        } catch (_: Throwable) { }
+        } catch (_: Throwable) {
+        }
         recording?.lastChangedTick = world.server.tickCount
     }
 
-   
+
     @JvmStatic
     fun monitorSetBlock(blockEntity: Any?) {
         if (isRestoring) return
         if (blockEntity !is BlockEntity) return
         val world = blockEntity.level
         if (world is ServerLevel) {
-            debugLogger("id ${recording?.id ?: 0}: set${blockEntity.blockPos}, block entity ${blockEntity.blockState}")
             world.modified(blockEntity.blockPos)
+            if (recording == null) return
 
             captureComparatorSnapshot(world, blockEntity.blockPos)
             captureHopperSnapshot(world, blockEntity.blockPos)
-            captureNearbyRedstoneSnapshot(world, blockEntity.blockPos)
-
-            recording?.data?.computeIfAbsent(blockEntity.blockPos.asLong()) {
-                (blockEntity as BlockEntityInterface).saveLastNbt()
-                recording!!.fromWorld(world, blockEntity.blockPos, true)
+            if (shouldRunRedstoneNeighborhoodScan(blockEntity.blockState)) {
+                captureNearbyRedstoneSnapshot(world, blockEntity.blockPos)
             }
+
+            captureBaselineIfAbsent(world, blockEntity.blockPos)
             try {
-                if (blockEntity.blockState.block == Blocks.COMPARATOR) {
-                    for (dir in Direction.values()) {
-                        try {
-                            val npos = blockEntity.blockPos.relative(dir)
-                            recording?.data?.computeIfAbsent(npos.asLong()) {
-                                (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
-                                recording!!.fromWorld(world, npos, true)
-                            }
-                        } catch (_: Throwable) { }
-                    }
-                    for (dx in -5..5) {
-                        for (dy in -5..5) {
-                            for (dz in -5..5) {
-                                try {
-                                    val npos2 = BlockPos(blockEntity.blockPos.x + dx, blockEntity.blockPos.y + dy, blockEntity.blockPos.z + dz)
-                                    recording?.data?.computeIfAbsent(npos2.asLong()) {
-                                        (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
-                                        recording!!.fromWorld(world, npos2, true)
-                                    }
-                                } catch (_: Throwable) { }
-                            }
-                        }
-                    }
-                } else if (blockEntity.blockState.block == Blocks.HOPPER) {
-                    for (dir in Direction.values()) {
-                        try {
-                            val npos = blockEntity.blockPos.relative(dir)
-                            recording?.data?.computeIfAbsent(npos.asLong()) {
-                                (world.getChunk(npos).getBlockEntity(npos) as? BlockEntityInterface)?.saveLastNbt()
-                                recording!!.fromWorld(world, npos, true)
-                            }
-                        } catch (_: Throwable) { }
-                    }
-                    for (dx in -5..5) {
-                        for (dy in -5..5) {
-                            for (dz in -5..5) {
-                                try {
-                                    val npos2 = BlockPos(blockEntity.blockPos.x + dx, blockEntity.blockPos.y + dy, blockEntity.blockPos.z + dz)
-                                    recording?.data?.computeIfAbsent(npos2.asLong()) {
-                                        (world.getChunk(npos2).getBlockEntity(npos2) as? BlockEntityInterface)?.saveLastNbt()
-                                        recording!!.fromWorld(world, npos2, true)
-                                    }
-                                } catch (_: Throwable) { }
-                            }
-                        }
-                    }
+                if (blockEntity.blockState.block == Blocks.COMPARATOR || blockEntity.blockState.block == Blocks.HOPPER) {
+                    captureNearbyComparatorOrHopperNeighbors(world, blockEntity.blockPos)
                 }
-            } catch (_: Throwable) { }
-            try {
-                val entry = recording?.data?.get(blockEntity.blockPos.asLong())
-                if (entry != null && entry.time == world.server.tickCount) {
-                    val dumpDir = java.nio.file.Path.of("build/undo-dumps")
-                    java.nio.file.Files.createDirectories(dumpDir)
-                    val dumpFile = dumpDir.resolve("capture-${recording?.id}-${blockEntity.blockPos.x}_${blockEntity.blockPos.y}_${blockEntity.blockPos.z}-${System.currentTimeMillis()}.txt")
-                    val sb = StringBuilder()
-                    sb.append("capture dump for record ${recording?.id} pos=${blockEntity.blockPos}\n")
-                    sb.append("state=${entry.state}\n")
-                    sb.append("beType=${entry.beType}\n")
-                    sb.append("beDataType=${entry.beData?.let { it::class.java?.name } ?: "null"}\n")
-                    sb.append("beDataSummary=")
-                    when (val d = entry.beData) {
-                        is CompoundTag -> sb.append("CompoundTag(size=${d.size()}): ${d}")
-                        is DataComponentMap -> sb.append("DataComponentMap(${d})")
-                        null -> sb.append("null")
-                        else -> sb.append(d.toString())
-                    }
-                    java.nio.file.Files.writeString(dumpFile, sb.toString())
-                    debugLogger("wrote capture diagnostic: $dumpFile")
-                }
-            } catch (_: Throwable) { }
+            } catch (_: Throwable) {
+            }
             recording?.lastChangedTick = world.server.tickCount
         }
     }
@@ -386,20 +312,13 @@ object UndoMixinHelper {
         val be = world.getBlockEntity(pos) as BlockEntityInterface?
         if (be != null) {
             val data = be.lastSavedNbt
-            debugLogger("id ${recording?.id ?: 0}: set$pos, block entity lastSaved=$data")
 
             if (beChangeOnly) {
                 world.modified(pos)
-                recording?.data?.computeIfAbsent(pos.asLong()) {
-                    debugLogger("id ${recording?.id ?: 0}: set$pos, block entity, applying lastSavedNbt")
-                    recording!!.fromWorld(world, pos, true).let {
-                        if (data != null) it.copy(beData = data)
-                        else it
-                    }
+                captureBaselineIfAbsent(world, pos) { entry ->
+                    if (data != null) entry.copy(beData = data) else entry
                 }
             }
-
-            debugLogger("postSetBlock: done.")
         }
     }
 
@@ -460,13 +379,11 @@ object UndoMixinHelper {
                 .onEach { removeRecord(it.id) }
                 .clear()
             var sum = playerView.undo.map(PlayerData.UndoRecord::getMemorySize).sum()
-            debugLogger("Undo size: $sum")
             val allowedUndoSizeInBytes = 30 * 1024 * 1024
             if (allowedUndoSizeInBytes >= 0) {
                 while (sum > allowedUndoSizeInBytes) {
                     removeRecord(playerView.undo.first().id)
                     playerView.undo.removeFirst()
-                    debugLogger("Undo size: $sum, removing.")
                     sum = playerView.undo.map(PlayerData.UndoRecord::getMemorySize).sum()
                 }
             }
@@ -481,8 +398,6 @@ object UndoMixinHelper {
         if (entity.noPhysics) return
         if (entity is ServerPlayer) return
         if (!isInitializingEntity) {
-            if (filterLogById(recording?.id ?: 0))
-                debugLogger("id ${recording?.id ?: 0}: add ${entity.uuid}, type ${entity.type.toShortString()}")
             recording?.entities?.computeIfAbsent(entity.uuid) {
                 PlayerData.EntityEntryImpl(
                     entity.type,
@@ -505,8 +420,6 @@ object UndoMixinHelper {
     @JvmStatic
     fun entitySpawned(entity: Entity) {
         if (entity is ServerPlayer) return
-        if (filterLogById(recording?.id ?: 0))
-            debugLogger("id ${recording?.id ?: 0}: spawn ${entity.uuid}, type ${entity.type.toShortString()}")
         recording?.entities?.putIfAbsent(entity.uuid, PlayerData.NotExistEntityEntry)
     }
 

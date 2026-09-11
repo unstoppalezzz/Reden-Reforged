@@ -62,9 +62,6 @@ public abstract class QuickMenuWidget implements GuiEventListener {
 
     public abstract void remove();
 
-    // TODO: the old draw callback was removed in the 26.2 Mojang GUI API. Re-enable
-    // once the custom right-click menu is migrated to the new GuiGraphicsExtractor pipeline.
-
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (entries.isEmpty()) {
             return false;

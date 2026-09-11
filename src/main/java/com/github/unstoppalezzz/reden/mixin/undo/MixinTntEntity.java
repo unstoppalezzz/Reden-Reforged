@@ -3,7 +3,6 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
-import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.PrimedTnt;
@@ -26,7 +25,6 @@ public abstract class MixinTntEntity extends Entity implements UndoableAccess {
     private void onInit(EntityType<?> entityType, Level level, CallbackInfo ci) {
         PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
         if (!level.isClientSide() && recording != null) {
-            DebugKt.debugLogger.invoke("TNT spawned, adding it into record " + recording.getId());
             setUndoId$reden(recording.getId());
         }
     }

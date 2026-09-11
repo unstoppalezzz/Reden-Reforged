@@ -3,7 +3,6 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
-import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.server.level.ServerLevel;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -34,7 +33,6 @@ public class MixinExplosion implements UndoableAccess {
         if (level.isClientSide) return;
         PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
         if (recording != null) {
-            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ recording.getId());
             undoId = recording.getId();
         }
     }
@@ -72,7 +70,6 @@ public class MixinExplosion implements UndoableAccess {
     private void onInit(CallbackInfo ci) {
         PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
         if (recording != null) {
-            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ recording.getId());
             undoId = recording.getId();
         }
     }
