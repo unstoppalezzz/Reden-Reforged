@@ -54,12 +54,6 @@ public abstract class MixinHopperBlockEntity implements UndoableAccess {
         if (level instanceof ServerLevel && !level.isClientSide()) {
             MixinHopperBlockEntity self = (MixinHopperBlockEntity) (Object) blockEntity;
             boolean recordingActive = UndoMixinHelper.INSTANCE.getRecording() != null;
-            // This fires every tick for every loaded hopper world-wide, so only pay for the NBT
-            // serialize when it could possibly matter: a recording is active right now, or this
-            // hopper carries a tag from one that might get reinstated below. For every other
-            // hopper - the overwhelming majority outside of active undo tracking - nothing
-            // downstream ever reads lastSavedNbt, since monitorSetBlock now bails immediately
-            // without a recording too.
             if (recordingActive || self.undoId != 0) {
                 ((BlockEntityInterface) blockEntity).saveLastNbt$reden();
             }
