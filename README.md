@@ -21,8 +21,6 @@ This fork exists because the original project has not been updated in over a yea
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin)
   
 ## Known issues
-
-- not restoring when a comparator is reading from a dropper / hopper circuit (only effect 26.1.2 and 26.2) - fixed 
       
 ## Credits
 
