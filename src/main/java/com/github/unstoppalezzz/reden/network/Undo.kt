@@ -49,28 +49,30 @@ class Undo(
             }
         }
 
-        private fun refreshRedstoneNeighbors(world: ServerLevel, pos: BlockPos, block: net.minecraft.world.level.block.Block) {
-            try {
-                world.updateNeighborsAt(pos, block)
-            } catch (_: Throwable) {
+        private fun refreshComparatorOutput(world: ServerLevel, pos: BlockPos) {
+            val state = world.getBlockState(pos)
+            if (state.block != net.minecraft.world.level.block.Blocks.COMPARATOR &&
+                state.block != net.minecraft.world.level.block.Blocks.HOPPER
+            ) {
+                return
             }
+
             try {
-                world.updateNeighbourForOutputSignal(pos, block)
+                world.updateNeighbourForOutputSignal(pos, state.block)
             } catch (_: Throwable) {
             }
 
             for (dir in net.minecraft.core.Direction.values()) {
                 val neighborPos = pos.relative(dir)
                 val neighborState = world.getBlockState(neighborPos)
-                try {
-                    world.updateNeighborsAt(neighborPos, neighborState.block)
-                } catch (_: Throwable) {
-                }
-                try {
-                    if (neighborState.hasAnalogOutputSignal()) {
+                if (neighborState.block == net.minecraft.world.level.block.Blocks.COMPARATOR ||
+                    neighborState.block == net.minecraft.world.level.block.Blocks.HOPPER ||
+                    neighborState.hasAnalogOutputSignal()
+                ) {
+                    try {
                         world.updateNeighbourForOutputSignal(neighborPos, neighborState.block)
+                    } catch (_: Throwable) {
                     }
-                } catch (_: Throwable) {
                 }
             }
         }
@@ -159,9 +161,13 @@ class Undo(
                 }
             }
 
-            restoredPositions.forEach { pos ->
-                refreshRedstoneNeighbors(world, pos, world.getBlockState(pos).block)
-            }
+            restoredPositions
+                .filter { pos ->
+                    val state = world.getBlockState(pos)
+                    state.block == net.minecraft.world.level.block.Blocks.COMPARATOR ||
+                        state.block == net.minecraft.world.level.block.Blocks.HOPPER
+                }
+                .forEach { pos -> refreshComparatorOutput(world, pos) }
 
             record.entities.forEach {
                 val entity = world.getEntity(it.key)

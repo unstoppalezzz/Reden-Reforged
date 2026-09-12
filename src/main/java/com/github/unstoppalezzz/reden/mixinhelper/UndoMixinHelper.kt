@@ -201,9 +201,9 @@ object UndoMixinHelper {
         }
 
         val localCandidates = linkedSetOf<BlockPos>()
-        for (dx in -2..2) {
-            for (dy in -2..2) {
-                for (dz in -2..2) {
+        for (dx in -SECONDARY_CAPTURE_RADIUS..SECONDARY_CAPTURE_RADIUS) {
+            for (dy in -SECONDARY_CAPTURE_RADIUS..SECONDARY_CAPTURE_RADIUS) {
+                for (dz in -SECONDARY_CAPTURE_RADIUS..SECONDARY_CAPTURE_RADIUS) {
                     if (dx == 0 && dy == 0 && dz == 0) continue
                     localCandidates += BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
                 }
@@ -213,7 +213,9 @@ object UndoMixinHelper {
         for (candidate in localCandidates) {
             val state = world.getBlockState(candidate)
             if (state.block == Blocks.AIR) continue
-            if (isRelevantRedstoneComponent(state) || state.block == Blocks.HOPPER || state.block == Blocks.COMPARATOR) {
+            if (state.block == Blocks.REDSTONE_WIRE || state.block is net.minecraft.world.level.block.BaseRailBlock ||
+                isRelevantRedstoneComponent(state) || state.block == Blocks.HOPPER || state.block == Blocks.COMPARATOR
+            ) {
                 captureBaselineIfAbsent(world, candidate)
             }
         }
@@ -235,11 +237,13 @@ object UndoMixinHelper {
                 return
             }
 
-            val candidates = collectPrimaryCapturePositions(pos)
+            val candidates = collectExpandedCapturePositions(pos)
             for (candidate in candidates) {
                 val state = world.getBlockState(candidate)
                 if (state.block == Blocks.AIR) continue
-                if (candidate == pos || isRelevantRedstoneComponent(state)) {
+                if (candidate == pos || state.block == Blocks.REDSTONE_WIRE || state.block is net.minecraft.world.level.block.BaseRailBlock ||
+                    isRelevantRedstoneComponent(state)
+                ) {
                     captureBaselineIfAbsent(world, candidate)
                 }
             }

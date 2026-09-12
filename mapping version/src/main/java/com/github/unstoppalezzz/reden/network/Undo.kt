@@ -21,6 +21,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.entity.Mob
+import net.minecraft.world.entity.item.PrimedTnt
 
 @Serializable
 class Undo(
@@ -29,129 +30,135 @@ class Undo(
     override fun type() = ID
 
     companion object : PacketCodecHelper<Undo> by PacketCodec(Reden.identifier("undo")) {
+        private fun refreshComparatorState(world: ServerLevel, pos: BlockPos) {
+            try {
+                val state = world.getBlockState(pos)
+                if (state.block == net.minecraft.world.level.block.Blocks.COMPARATOR) {
+                    world.updateNeighbourForOutputSignal(pos, state.block)
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
+        private fun refreshHopperState(world: ServerLevel, pos: BlockPos) {
+            try {
+                val state = world.getBlockState(pos)
+                if (state.block == net.minecraft.world.level.block.Blocks.HOPPER) {
+                    world.updateNeighbourForOutputSignal(pos, state.block)
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
+        private fun refreshComparatorOutput(world: ServerLevel, pos: BlockPos) {
+            val state = world.getBlockState(pos)
+            if (state.block != net.minecraft.world.level.block.Blocks.COMPARATOR &&
+                state.block != net.minecraft.world.level.block.Blocks.HOPPER
+            ) {
+                return
+            }
+
+            try {
+                world.updateNeighbourForOutputSignal(pos, state.block)
+            } catch (_: Throwable) {
+            }
+
+            for (dir in net.minecraft.core.Direction.values()) {
+                val neighborPos = pos.relative(dir)
+                val neighborState = world.getBlockState(neighborPos)
+                if (neighborState.block == net.minecraft.world.level.block.Blocks.COMPARATOR ||
+                    neighborState.block == net.minecraft.world.level.block.Blocks.HOPPER ||
+                    neighborState.hasAnalogOutputSignal()
+                ) {
+                    try {
+                        world.updateNeighbourForOutputSignal(neighborPos, neighborState.block)
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        }
+
+        private fun destroyPrimedTntAt(world: ServerLevel, pos: BlockPos) {
+            val center = net.minecraft.world.phys.Vec3.atCenterOf(pos)
+            val tntEntities = world.getEntitiesOfClass(
+                net.minecraft.world.entity.item.PrimedTnt::class.java,
+                net.minecraft.world.phys.AABB.ofSize(center, 1.5, 1.5, 1.5)
+            ) { entity -> entity.blockPosition() == pos || entity.position().distanceToSqr(center) < 1.0 }
+
+            if (tntEntities.isNotEmpty()) {
+                tntEntities.forEach { it.discard() }
+            }
+        }
+
         private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true) {
-            debugLogger("undoing record ${record.id}, isUndo=$isUndo")
+            val restoredPositions = mutableListOf<BlockPos>()
             record.data.forEach { (posLong, entry) ->
                 val pos = BlockPos.of(posLong)
-                debugLogger("undo ${pos}, ${entry.state}")
-                // set block
+                val currentState = world.getBlockState(pos)
                 val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
                 if (sec.getModifyTime(pos) < entry.time && isUndo) {
-                    debugLogger("undo $pos skipped (${sec.getModifyTime(pos)} < ${entry.time})")
                     return@forEach
                 }
                 world.modified(pos, entry.time)
-                // two situations:
-                // if isUndo, the block is modified by the undo record, so we need to set the modify time to the undo record's time
-                // if isRedo, the block is modified by the player operations, so we need to set the modify time to the current time
-                //  luckily, the redo record's time is the current time
+
                 world.setBlockNoPP(pos, entry.state)
-                // Only update adjacent comparators so they refresh their outputs
-                try {
-                    for (dir in net.minecraft.core.Direction.values()) {
-                        val np = pos.relative(dir)
-                        val ns = world.getBlockState(np)
-                        val b = ns.block
-                        if (b is net.minecraft.world.level.block.ComparatorBlock) {
-                            try {
-                                try {
-                                    val facing = ns.getValue(net.minecraft.world.level.block.ComparatorBlock.FACING)
-                                    var out = -1
-                                    try {
-                                        val cls = net.minecraft.world.level.block.ComparatorBlock::class.java
-                                        val m = cls.getDeclaredMethod("getAnalogOutputSignal", net.minecraft.world.level.block.state.BlockState::class.java, net.minecraft.world.level.Level::class.java, net.minecraft.core.BlockPos::class.java, net.minecraft.core.Direction::class.java)
-                                        m.isAccessible = true
-                                        out = (m.invoke(null, ns, world, np, facing) as Int)
-                                    } catch (e: NoSuchMethodException) {
-                                        try {
-                                            val cls2 = net.minecraft.world.level.block.entity.ComparatorBlockEntity::class.java
-                                            val m2 = cls2.getDeclaredMethod("getAnalogOutputSignal", net.minecraft.world.level.Level::class.java, net.minecraft.core.BlockPos::class.java, net.minecraft.core.Direction::class.java)
-                                            m2.isAccessible = true
-                                            out = (m2.invoke(null, world, np, facing) as Int)
-                                        } catch (e2: NoSuchMethodException) {
-                                            val beIns = world.getBlockEntity(np)
-                                            if (beIns is net.minecraft.world.level.block.entity.ComparatorBlockEntity) {
-                                                try {
-                                                    try {
-                                                        val m3 = beIns::class.java.getDeclaredMethod("getAnalogOutputSignal")
-                                                        m3.isAccessible = true
-                                                        out = (m3.invoke(beIns) as Int)
-                                                    } catch (nsme: NoSuchMethodException) {
-                                                        try {
-                                                            val m3 = beIns::class.java.getDeclaredMethod("getComparatorOutput")
-                                                            m3.isAccessible = true
-                                                            out = (m3.invoke(beIns) as Int)
-                                                        } catch (ignored: Throwable) {
-                                                        }
-                                                    }
-                                                } catch (ignored: Throwable) {
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (out >= 0) {
-                                        val be = world.getBlockEntity(np)
-                                        if (be is net.minecraft.world.level.block.entity.ComparatorBlockEntity) {
-                                            be.setOutputSignal(out)
-                                            // notify clients of block entity change
-                                            world.sendBlockUpdated(np, ns, ns, 3)
-                                        }
-                                    }
-                                } catch (ignored: Throwable) {
-                                }
-                            } catch (ignored: Throwable) {
-                            }
-                        }
-                    }
-                } catch (t: Throwable) {
-                    debugLogger("Failed to refresh adjacent comparators at $pos: $t")
+                restoredPositions += pos
+                val restoredState = world.getBlockState(pos)
+                if (entry.state.block == net.minecraft.world.level.block.Blocks.TNT || restoredState.block == net.minecraft.world.level.block.Blocks.TNT) {
+                    destroyPrimedTntAt(world, pos)
                 }
-                // clear schedules
-//                world.syncedBlockEventQueue.removeIf { it.pos == pos }
-//                val blockTickScheduler = world.getChunk(pos).blockTickScheduler as ChunkTickScheduler
-//                val fluidTickScheduler = world.getChunk(pos).fluidTickScheduler as ChunkTickScheduler
-//                blockTickScheduler.removeTicksIf { it.pos == pos }
-//                fluidTickScheduler.removeTicksIf { it.pos == pos }
-                // apply block entity
                 entry.beType?.let { beType ->
-                    debugLogger("undo block entity ${pos}, $beType")
-                    if (entry.state.hasBlockEntity()) {
-                        // Dont use EntityBlock.newBlockEntity, piston bug
-                        val be = beType.create(pos, entry.state)
-                            ?: return@let
-                        val beData = entry.beData ?: return@let
-
-                        when (beData) {
-                            is CompoundTag -> {
-                                //? if <= 1.21.5 {
-                                /*be.loadWithComponents(beData, world.registryAccess())
-                                *///?} elif >= 1.21.6 {
-                                be.loadWithComponents(
-                                    net.minecraft.world.level.storage.TagValueInput.create(
-                                        net.minecraft.util.ProblemReporter.DISCARDING,
-                                        world.registryAccess(),
-                                        beData
-                                    )
-                                )
-                                //?}
-                            }
-
-                            is DataComponentMap -> {
-                                val prototype = entry.state.block.asItem().components()
-                                be.applyComponents(prototype, DataComponentPatch.builder().apply {
-                                    beData.forEach { typedDataComponent ->
-                                        this.set(typedDataComponent)
-                                    }
-                                }.build())
-                            }
-
-                            else -> {
-                                throw IllegalArgumentException("Unsupported block entity data type: ${beData::class.java}")
-                            }
-                        }
-                        world.setBlockEntity(be)
-                        (world.getBlockEntity(pos) as BlockEntityInterface).saveLastNbt()
+                    if (!entry.state.hasBlockEntity()) {
+                        return@let
                     }
+
+                    val currentState = world.getBlockState(pos)
+                    if (currentState.isAir || !currentState.`is`(entry.state.block)) {
+                        return@let
+                    }
+
+                    val be = beType.create(pos, entry.state)
+                    if (be == null) {
+                        return@let
+                    }
+
+                    val beData = entry.beData
+                    if (beData == null) {
+                        world.setBlockEntity(be)
+                        (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
+                        return@let
+                    }
+
+                    when (beData) {
+                        is CompoundTag -> {
+                            //? if <= 1.21.5 {
+                            /*be.loadWithComponents(beData, world.registryAccess())
+                            *///?} elif >= 1.21.6 {
+                            be.loadWithComponents(
+                                net.minecraft.world.level.storage.TagValueInput.create(
+                                    net.minecraft.util.ProblemReporter.DISCARDING,
+                                    world.registryAccess(),
+                                    beData
+                                )
+                            )
+                            //?}
+                        }
+
+                        is DataComponentMap -> {
+                            val prototype = entry.state.block.asItem().components()
+                            be.applyComponents(prototype, DataComponentPatch.builder().apply {
+                                beData.forEach { typedDataComponent ->
+                                    this.set(typedDataComponent)
+                                }
+                            }.build())
+                        }
+
+                        else -> {
+                            throw IllegalArgumentException("Unsupported block entity data type: ${beData::class.java}")
+                        }
+                    }
+                    world.setBlockEntity(be)
+                    (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
                 }
             }
             record.entities.forEach {
@@ -191,10 +198,17 @@ class Undo(
                         if (entity is Mob) {
                             entity.removeFreeWill()
                         }
-                        entity.load(entry.nbt)
                     }
                 }
             }
+
+            restoredPositions
+                .filter { pos ->
+                    val state = world.getBlockState(pos)
+                    state.block == net.minecraft.world.level.block.Blocks.COMPARATOR ||
+                        state.block == net.minecraft.world.level.block.Blocks.HOPPER
+                }
+                .forEach { pos -> refreshComparatorOutput(world, pos) }
         }
         private fun <T: PlayerData.UndoRedoRecord> MutableList<T>.lastValid(): T? {
             while (this.isNotEmpty()) {

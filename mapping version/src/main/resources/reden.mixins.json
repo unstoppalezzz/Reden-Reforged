@@ -11,6 +11,7 @@
     "undo.MixinDataTracker",
     "undo.MixinEntity",
     "undo.MixinExplosion",
+    "undo.MixinHopperBlockEntity",
     "undo.MixinLivingEntity",
     "undo.MixinMovingPiston",
     "undo.MixinPistonEntity",
