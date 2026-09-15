@@ -26,7 +26,7 @@ This fork exists because the original project has not been updated in over a yea
 - modrinth still under review
 - [curseforge](https://www.curseforge.com/minecraft/mc-mods/reden-reforged)  
 ## Known issues
-      
+ -breaks when redstone uses entitys
 ## Credits
 
 Original project: [zly2006/reden-is-what-we-made](https://github.com/zly2006/reden-is-what-we-made)  
