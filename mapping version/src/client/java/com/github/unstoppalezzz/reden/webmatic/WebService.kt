@@ -66,108 +66,6 @@ fun Request.Builder.ua() = apply {
     header("User-Agent", "RedenMC/${MOD_VERSION} Minecraft/$gameVerString (Fabric) $userAgent")
 }
 
-@Serializable
-class FeatureUsageData(
-    val source: String,
-    val name: String,
-    val time: Long,
-)
-
-fun doHeartHeat() {
-    httpClient.newCall(Request.Builder().apply {
-        url("$redenApiBaseUrl/mc/heartbeat")
-        @Serializable
-        class Player(
-            val name: String,
-            val uuid: String,
-            val latency: Int,
-            val gamemode: String,
-        )
-        @Serializable
-        class Req(
-            val key: String,
-            val usage: List<FeatureUsageData>,
-            val times: Int,
-            val players: List<Player>?
-        )
-        fun samplePlayers() = if (isClient) {
-            Minecraft.getInstance().connection?.onlinePlayers?.map { Player(
-                it.profile.name,
-                it.profile.id.toString(),
-                it.latency,
-                it.gameMode.name,
-            ) }
-        } else emptyList()
-        val req = Req(
-            key,
-            featureUsageData,
-            usedTimes,
-            samplePlayers()
-        )
-        json(req)
-        ua()
-    }.build()).execute().use {
-        @Serializable
-        class Res(
-            val status: String,
-            val shutdown: Boolean,
-        )
-
-        if (it.code in 200..299 || it.code in 400..499) {
-            val res = jsonIgnoreUnknown.decodeFromString(Res.serializer(), it.body!!.string())
-            if (res.shutdown) {
-                throw Error(res.status)
-            }
-            if (res.status.startsWith("set-key=")) {
-                key = res.status.substring(8)
-                updateOnlineInfo(Minecraft.getInstance())
-            }
-            if (it.code == 200) {
-                featureUsageData.clear()
-            }
-        }
-    }
-}
-
-val featureUsageData = mutableListOf<FeatureUsageData>()
-var heartbeatThread: Thread? = null
-fun initHeartBeat() {
-    try {
-        heartbeatThread?.interrupt()
-    } catch (e: Exception) {
-        LOGGER.error("Failed to stop heartbeat", e)
-    }
-    heartbeatThread = Thread("RedenMC HeartBeat") {
-        while (true) {
-            try {
-                Thread.sleep(1000 * 60 * 5)
-                doHeartHeat()
-            } catch (e: InterruptedException) {
-                break
-            } catch (e: Exception) {
-                LOGGER.error("", e)
-            }
-        }
-    }
-    heartbeatThread!!.start()
-}
-
-fun Thread(name: String, function: () -> Unit) = Thread(function, name)
-
-private var usedTimes = 0
-private var activeUseTimes = 0
-
-fun onFunctionUsed(name: String, active: Boolean = false) {
-    featureUsageData.add(FeatureUsageData(if (isClient) Minecraft.getInstance().user.name else "Server", name, System.currentTimeMillis()))
-    if (heartbeatThread == null || !heartbeatThread!!.isAlive) {
-        initHeartBeat()
-    }
-    usedTimes++
-    activeUseTimes++
-    if (isClient) {
-    }
-}
-
 val jsonIgnoreUnknown = Json { ignoreUnknownKeys = true }
 
 fun reportServerStart(server: MinecraftServer) {
@@ -287,9 +185,6 @@ class OnlineRes(
 )
 
 fun updateOnlineInfo(client: Minecraft): Boolean {
-    if (heartbeatThread == null || !heartbeatThread!!.isAlive) {
-        initHeartBeat()
-    }
     try {
         client.minecraftSessionService.joinServer(
             client.user.profileId,
@@ -391,7 +286,6 @@ fun redenSetup(client: Minecraft) {
                 throw Error("Client closing due to copyright reasons, please go to https://www.redenmc.com/policy/copyright gor more information")
             }
             key = requireNotNull(res.key) { "Reden ApiKey is null" }
-            initHeartBeat()
             LOGGER.info("RedenMC: ${res.desc}")
             LOGGER.info("key=${res.key}, ip=${res.ip}, id=${res.id}, status=${res.status}, username=${res.username}")
         } catch (e: Exception) {
@@ -400,11 +294,6 @@ fun redenSetup(client: Minecraft) {
         updateOnlineInfo(client)
     }.start()
     Runtime.getRuntime().addShutdownHook(Thread {
-        try {
-            if (featureUsageData.isNotEmpty()) doHeartHeat()
-        } catch (e: Exception) {
-            LOGGER.error("", e)
-        }
         try {
             @Serializable
             class Req(

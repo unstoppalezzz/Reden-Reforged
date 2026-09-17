@@ -1,7 +1,6 @@
 package com.github.unstoppalezzz.reden.webmatic
 
 import com.github.unstoppalezzz.reden.Reden
-import com.github.unstoppalezzz.reden.gui.componments.WebTextureComponent
 import com.github.unstoppalezzz.reden.utils.multiver.Text
 import io.wispforest.owo.ui.base.BaseOwoScreen
 import io.wispforest.owo.ui.component.Components
@@ -68,15 +67,6 @@ class MevScreen : BaseOwoScreen<FlowLayout>() {
                 } else false
             }
 //            mev.display = this
-
-            if (mev.images.isNotEmpty()) {
-                val size = client.options.guiScale().get() * 40 * 2
-                mev.thumbnailUrl?.let { thumbnailUrl ->
-                    TextureStorage.getImage(thumbnailUrl) {
-                        this.child(0, WebTextureComponent(it, 0, 0, 40, 40))
-                    }
-                }
-            }
         }
 
         val currentPage = page

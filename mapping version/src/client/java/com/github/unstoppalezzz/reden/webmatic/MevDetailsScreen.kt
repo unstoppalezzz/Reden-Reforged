@@ -1,10 +1,8 @@
 package com.github.unstoppalezzz.reden.webmatic
 
 import com.github.unstoppalezzz.reden.Reden
-import com.github.unstoppalezzz.reden.gui.componments.WebTextureComponent
 import com.github.unstoppalezzz.reden.mixin.client.malilib.IMixinGuiListBase
 import com.github.unstoppalezzz.reden.utils.multiver.Text
-import com.github.unstoppalezzz.reden.utils.red
 import fi.dy.masa.litematica.gui.GuiSchematicLoad
 import fi.dy.masa.litematica.gui.widgets.WidgetSchematicBrowser
 import fi.dy.masa.malilib.gui.widgets.WidgetDirectoryEntry
@@ -47,26 +45,9 @@ val Minecraft.lang: String get() = when (options.languageCode) {
 
 class MevDetailsScreen(val parent: Screen?, val info: ItemDto) : BaseOwoScreen<FlowLayout>() {
     val client = Minecraft.getInstance()!!
-    private val loadingLabel = Components.label(Text.literal("加载中...").withStyle(ChatFormatting.GRAY))!!
-    private val images = ArrayList<Component>(info.images.size).apply {
-        for (i in 0 until info.images.size) this.add(loadingLabel)
-    }
-    private val imgContainer = Containers.horizontalFlow(Sizing.fill(), Sizing.content()).apply {
-        horizontalAlignment(HorizontalAlignment.CENTER)
-    }!!
     private val filesContainer = Containers.verticalFlow(Sizing.fill(), Sizing.content()).apply {
     }!!
     private val description = Containers.verticalFlow(Sizing.fill(), Sizing.content()).apply {
-    }!!
-    private var imgId = 1
-    private val imageInfoLabel = Components.label(Text.empty().withStyle(ChatFormatting.GRAY))!!
-    private val btnPrev = Components.button(Text.literal("<")) {
-        imgId--
-        if (imgId < 1) imgId = info.images.size
-    }!!
-    private val btnNext = Components.button(Text.literal(">")) {
-        imgId++
-        if (imgId > info.images.size) imgId = 1
     }!!
 
     override fun createAdapter() = OwoUIAdapter.create(this, Containers::verticalFlow)!!
@@ -117,28 +98,6 @@ class MevDetailsScreen(val parent: Screen?, val info: ItemDto) : BaseOwoScreen<F
             Containers.verticalScroll(Sizing.fill(), Sizing.expand(),
                 Containers.verticalFlow(Sizing.fill(), Sizing.content()).apply {
                     gap(5)
-                    if (info.images.isNotEmpty()) {
-                        this.child(Containers.horizontalFlow(Sizing.fill(), Sizing.content()).apply {
-                            child(btnPrev as Component)
-                            child(imageInfoLabel)
-                            child(btnNext as Component)
-                            horizontalAlignment(HorizontalAlignment.CENTER)
-                            verticalAlignment(VerticalAlignment.CENTER)
-                        })
-                        info.images.mapIndexed { index, url ->
-                            TextureStorage.getImage(url, {
-                                images[index] = WebTextureComponent.fixedHeight(
-                                    it, 0, 0,
-                                    this@MevDetailsScreen.height * 4 / 5
-                                )
-                            }) {
-                                images[index] = Components.label(Text.literal("Failed: ${it.message}").red()).apply {
-                                    maxWidth(this@MevDetailsScreen.width)
-                                }
-                            }
-                        }
-                        this.child(imgContainer)
-                    }
                     description.child(Components.label(Text.of(info.description)).apply {
                         sizing(Sizing.fill(), Sizing.content())
                     })
