@@ -70,9 +70,6 @@ dependencies {
         }
     }
 
-    include(implementation("com.squareup.okio:okio-jvm:3.2.0")!!)
-    include(implementation("com.squareup.okhttp3:okhttp:4.11.0")!!)
-
     modImplementation("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
     modImplementation("net.fabricmc:fabric-language-kotlin:${property("deps.fabric_language_kotlin")}")
     modImplementation("io.wispforest:owo-lib:${property("deps.owo")}") {
