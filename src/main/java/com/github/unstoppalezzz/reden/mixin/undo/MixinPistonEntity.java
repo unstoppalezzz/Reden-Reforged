@@ -1,6 +1,5 @@
 package com.github.unstoppalezzz.reden.mixin.undo;
 
-import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
@@ -27,9 +26,9 @@ public class MixinPistonEntity implements UndoableAccess {
 
     @Inject(method = "<init>(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;ZZ)V", at = @At("RETURN"))
     private void onInit(CallbackInfo ci) {
-        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
-        if (recording != null) {
-            undoId = recording.getId();
+        long id = UndoMixinHelper.inheritedRecordId();
+        if (id != 0) {
+            undoId = id;
         }
     }
 

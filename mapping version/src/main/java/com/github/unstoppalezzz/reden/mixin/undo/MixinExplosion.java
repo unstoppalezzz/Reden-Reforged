@@ -1,6 +1,5 @@
 package com.github.unstoppalezzz.reden.mixin.undo;
 
-import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import com.github.unstoppalezzz.reden.utils.DebugKt;
@@ -32,10 +31,10 @@ public class MixinExplosion implements UndoableAccess {
     )
     private void onInit(CallbackInfo ci) {
         if (level.isClientSide) return;
-        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
-        if (recording != null) {
-            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ recording.getId());
-            undoId = recording.getId();
+        long id = UndoMixinHelper.inheritedRecordId();
+        if (id != 0) {
+            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ id);
+            undoId = id;
         }
     }
 
@@ -70,10 +69,10 @@ public class MixinExplosion implements UndoableAccess {
         at = @At("RETURN")
     )
     private void onInit(CallbackInfo ci) {
-        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
-        if (recording != null) {
-            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ recording.getId());
-            undoId = recording.getId();
+        long id = UndoMixinHelper.inheritedRecordId();
+        if (id != 0) {
+            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ id);
+            undoId = id;
         }
     }
 

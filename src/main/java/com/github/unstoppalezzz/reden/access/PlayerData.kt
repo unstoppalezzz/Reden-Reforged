@@ -76,6 +76,7 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
 
         fun fromWorld(world: ServerLevel, pos: BlockPos, putNearByEntities: Boolean): Entry {
             val be = world.getBlockEntity(pos)
+            (be as? BlockEntityInterface)?.saveLastNbt()
             val state = world.getBlockState(pos)
             return Entry(state, be?.lastSavedNbt(), be?.type, world.server.tickCount).apply {
                 if (putNearByEntities &&
@@ -90,14 +91,14 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
                     list.forEach { entity ->
                         this@UndoRedoRecord.entities.computeIfAbsent(entity.uuid) {
                             //? if <= 1.21.5 {
-                            /*EntityEntryImpl(entity.type, CompoundTag().apply(entity::save), entity.blockPosition())
+                            /*EntityEntryImpl(entity.type, CompoundTag().apply(entity::saveWithoutId), entity.blockPosition())
                             *///?} else {
                             EntityEntryImpl(
                                 entity.type,
                                 net.minecraft.world.level.storage.TagValueOutput.createWithContext(
                                     net.minecraft.util.ProblemReporter.DISCARDING,
                                     world.registryAccess()
-                                ).apply(entity::save).buildResult(),
+                                ).apply(entity::saveWithoutId).buildResult(),
                                 entity.blockPosition()
                             )
                             //?}

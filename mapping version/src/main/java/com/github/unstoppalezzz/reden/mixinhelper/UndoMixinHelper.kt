@@ -28,11 +28,42 @@ import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.state.properties.BlockStateProperties
 import net.minecraft.core.Direction
 import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.level.block.PressurePlateBlock
+import net.minecraft.world.level.block.TripWireBlock
+import net.minecraft.world.level.block.DetectorRailBlock
 
 
 object UndoMixinHelper {
     private const val PRIMARY_CAPTURE_RADIUS = 2
     private const val SECONDARY_CAPTURE_RADIUS = 3
+
+    private const val ENTITY_TRIGGER_LINGER_TICKS = 40
+    private var pendingLingerRecordId: Long? = null
+    private var pendingLingerExpireTick: Int = Int.MIN_VALUE
+
+    private fun withLingeringRecord(world: ServerLevel, block: () -> Unit): Boolean {
+        val id = pendingLingerRecordId ?: return false
+        if (world.server.tickCount > pendingLingerExpireTick) return false
+        val rec = undoRecordsMap[id] ?: return false
+        undoRecords.add(UndoRecordEntry(id, rec, "entity_trigger_linger"))
+        try {
+            block()
+        } finally {
+            undoRecords.removeLast()
+        }
+      
+        pendingLingerExpireTick = world.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS
+        return true
+    }
+
+    @JvmStatic
+    fun inheritedRecordId(): Long {
+        recording?.let { return it.id }
+        val id = pendingLingerRecordId ?: return 0L
+        if (com.github.unstoppalezzz.reden.utils.server.tickCount > pendingLingerExpireTick) return 0L
+        if (undoRecordsMap[id] == null) return 0L
+        return id
+    }
 
     private var throttleTick = Int.MIN_VALUE
     private val genericOriginsExpandedThisTick = mutableSetOf<Long>()
@@ -81,6 +112,7 @@ object UndoMixinHelper {
         return state.hasAnalogOutputSignal() ||
             block is net.minecraft.world.level.block.DiodeBlock ||
             block is net.minecraft.world.level.block.ObserverBlock ||
+            block is net.minecraft.world.level.block.DispenserBlock ||
             block is net.minecraft.world.level.block.LeverBlock ||
             block is net.minecraft.world.level.block.ButtonBlock ||
             block is net.minecraft.world.level.block.PressurePlateBlock ||
@@ -102,6 +134,7 @@ object UndoMixinHelper {
         val block = state.block
         return block is net.minecraft.world.level.block.DiodeBlock ||
             block is net.minecraft.world.level.block.ObserverBlock ||
+            block is net.minecraft.world.level.block.DispenserBlock ||
             block is net.minecraft.world.level.block.LeverBlock ||
             block is net.minecraft.world.level.block.ButtonBlock ||
             block is net.minecraft.world.level.block.PressurePlateBlock ||
@@ -127,9 +160,42 @@ object UndoMixinHelper {
     internal val undoRecords = mutableListOf<UndoRecordEntry>()
 
 
+    private val recordTags = HashMap<Long, Long>()
+  
+    private val frozenPositions = HashMap<Long, Int>()
+
+    fun freezePositions(positions: Collection<BlockPos>, untilTick: Int, nowTick: Int) {
+        frozenPositions.values.removeIf { it < nowTick }
+        positions.forEach { frozenPositions[it.asLong()] = untilTick }
+    }
+
+    @JvmStatic
+    fun frozenUntil(pos: BlockPos, tick: Int): Int {
+        val until = frozenPositions[pos.asLong()] ?: return -1
+        return if (tick > until) -1 else until
+    }
+
+    @JvmStatic
+    fun isFrozen(pos: BlockPos, tick: Int): Boolean = frozenUntil(pos, tick) != -1
+
+    @JvmStatic
+    fun taggedRecordId(pos: BlockPos): Long {
+        if (!recordTags.containsKey(pos.asLong())) return 0L
+        return undoRecordsMap.keys.maxOrNull() ?: 0L
+    }
+
+    @JvmStatic
+    fun attributedRecordId(id: Long): Long {
+        if (id == 0L) return 0L
+        val newest = undoRecordsMap.keys.maxOrNull() ?: return id
+        return if (newest > id) newest else id
+    }
+
     fun cleanup() {
         undoRecordsMap.clear()
         undoRecords.clear()
+        recordTags.clear()
+        frozenPositions.clear()
     }
 
     private fun filterLogById(undoId: Long) =
@@ -163,6 +229,9 @@ object UndoMixinHelper {
     ) {
         val rec = recording ?: return
         val key = pos.asLong()
+        if (world.getBlockState(pos).hasRecordTag()) {
+            recordTags[key] = rec.id
+        }
         if (rec.data.containsKey(key)) return
         world.modified(pos)
         val be = world.getChunk(pos).getBlockEntity(pos)
@@ -191,6 +260,22 @@ object UndoMixinHelper {
             val be = world.getBlockEntity(pos) as? BlockEntityInterface ?: return
             be.saveLastNbt()
         } catch (_: Throwable) {
+        }
+    }
+
+    private const val ENTITY_TRIGGER_CAPTURE_RADIUS = 3
+    private const val TRIPWIRE_CAPTURE_RADIUS = 6
+
+
+    private fun captureNearbyEntityTriggerSnapshot(world: ServerLevel, pos: BlockPos, radius: Int) {
+        for (dx in -radius..radius) {
+            for (dy in -radius..radius) {
+                for (dz in -radius..radius) {
+                    val candidate = BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
+                    if (world.getBlockState(candidate).block == Blocks.AIR) continue
+                    captureBaselineIfAbsent(world, candidate)
+                }
+            }
         }
     }
 
@@ -252,17 +337,88 @@ object UndoMixinHelper {
         }
     }
 
+    private fun BlockState.hasRecordTag() = block is TripWireBlock || block is DetectorRailBlock ||
+        block is net.minecraft.world.level.block.DispenserBlock
+
+    private fun isEntityTriggerComponent(state: BlockState): Boolean {
+        val block = state.block
+        return block is PressurePlateBlock || block is TripWireBlock || block is DetectorRailBlock
+    }
+
+    private const val CONNECTED_CAPTURE_LIMIT = 400
+
+    private fun isConnectedRedstoneComponent(state: BlockState): Boolean {
+        val block = state.block
+        return block == Blocks.REDSTONE_WIRE ||
+            block is net.minecraft.world.level.block.BaseRailBlock ||
+            isRelevantRedstoneComponent(state)
+    }
+
+    private fun captureConnectedRedstoneSnapshot(world: ServerLevel, origin: BlockPos) {
+        try {
+            val visited = mutableSetOf<Long>()
+            val queue = ArrayDeque<BlockPos>()
+            queue.add(origin)
+            visited.add(origin.asLong())
+            while (queue.isNotEmpty() && visited.size <= CONNECTED_CAPTURE_LIMIT) {
+                val pos = queue.removeFirst()
+                captureBaselineIfAbsent(world, pos)
+                for (dir in Direction.values()) {
+                    val npos = pos.relative(dir)
+                    val key = npos.asLong()
+                    if (!visited.add(key)) continue
+                    val state = world.getBlockState(npos)
+                    if (state.block == Blocks.AIR) continue
+                    if (!isConnectedRedstoneComponent(state)) continue
+                    queue.add(npos)
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
     @JvmStatic
-    fun monitorSetBlock(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
+    fun captureDispenserSnapshot(world: ServerLevel, pos: BlockPos, front: BlockPos) {
         if (isRestoring) return
-        world.modified(pos)
+        val capture = {
+            captureBaselineIfAbsent(world, pos)
+            captureBaselineIfAbsent(world, front)
+        }
+        val path: String
+        if (recording != null) {
+            capture()
+            path = "active recording ${recording?.id}"
+        } else {
+            val id = taggedRecordId(pos)
+            if (id != 0L) {
+                undoRecords.add(UndoRecordEntry(id, undoRecordsMap[id], "dispense capture"))
+                try {
+                    capture()
+                } finally {
+                    undoRecords.removeLast()
+                }
+                path = "tagged record $id"
+            } else if (isNextToLingeringRecord(pos)) {
+                withLingeringRecord(world) { capture() }
+                path = "lingering record $pendingLingerRecordId"
+            } else {
+                path = "NO record (not captured)"
+            }
+        }
+    }
 
-        if (recording == null) return
-
+    private fun captureMonitoredBlockSnapshot(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
         captureComparatorSnapshot(world, pos)
         captureHopperSnapshot(world, pos)
         if (shouldRunRedstoneNeighborhoodScan(blockState)) {
             captureNearbyRedstoneSnapshot(world, pos)
+            captureConnectedRedstoneSnapshot(world, pos)
+        }
+        if (isEntityTriggerComponent(blockState)) {
+            captureNearbyEntityTriggerSnapshot(
+                world, pos,
+                if (blockState.block is TripWireBlock) TRIPWIRE_CAPTURE_RADIUS else ENTITY_TRIGGER_CAPTURE_RADIUS
+            )
         }
 
         captureBaselineIfAbsent(world, pos)
@@ -275,6 +431,37 @@ object UndoMixinHelper {
         recording?.lastChangedTick = world.server.tickCount
     }
 
+    private fun isNextToLingeringRecord(pos: BlockPos): Boolean {
+        val id = pendingLingerRecordId ?: return false
+        val data = undoRecordsMap[id]?.data ?: return false
+        if (data.containsKey(pos.asLong())) return true
+        for (dir in Direction.values()) {
+            if (data.containsKey(pos.relative(dir).asLong())) return true
+        }
+        return false
+    }
+
+    @JvmStatic
+    fun monitorSetBlock(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
+        if (isRestoring) return
+        world.modified(pos)
+
+        val isChainReactionCandidate = isEntityTriggerComponent(blockState) ||
+            shouldRunRedstoneNeighborhoodScan(blockState) ||
+            blockState.block is net.minecraft.world.level.block.TntBlock
+
+        if (recording != null) {
+            captureMonitoredBlockSnapshot(world, pos, blockState)
+            return
+        }
+
+        if (!isChainReactionCandidate && !isNextToLingeringRecord(pos)) return
+
+        withLingeringRecord(world) {
+            captureMonitoredBlockSnapshot(world, pos, blockState)
+        }
+    }
+
 
     @JvmStatic
     fun monitorSetBlock(blockEntity: Any?) {
@@ -283,7 +470,12 @@ object UndoMixinHelper {
         val world = blockEntity.level
         if (world is ServerLevel) {
             world.modified(blockEntity.blockPos)
-            if (recording == null) return
+            if (recording == null) {
+                if (isNextToLingeringRecord(blockEntity.blockPos)) {
+                    withLingeringRecord(world) { monitorSetBlock(blockEntity) }
+                }
+                return
+            }
 
             captureComparatorSnapshot(world, blockEntity.blockPos)
             captureHopperSnapshot(world, blockEntity.blockPos)
@@ -319,9 +511,13 @@ object UndoMixinHelper {
 
             if (beChangeOnly) {
                 world.modified(pos)
-                captureBaselineIfAbsent(world, pos) { entry ->
-                    if (data != null) entry.copy(beData = data) else entry
+                val capture = {
+                    captureBaselineIfAbsent(world, pos) { entry ->
+                        if (data != null) entry.copy(beData = data) else entry
+                    }
                 }
+                if (recording != null) capture()
+                else if (isNextToLingeringRecord(pos)) withLingeringRecord(world) { capture() }
             }
         }
     }
@@ -378,7 +574,16 @@ object UndoMixinHelper {
         val playerView = player.data()
         if (playerView.isRecording) {
             playerView.isRecording = false
+            val stoppingRecordId = recording?.id
             popRecord { "player recording/${player.scoreboardName}/${recording?.cause}" }
+            if (stoppingRecordId != null) {
+                pendingLingerRecordId = stoppingRecordId
+                pendingLingerExpireTick =
+                    //? if <= 1.21.5
+                    /*player.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS*/
+                    //? if >= 1.21.6
+                    player.level().server.tickCount + ENTITY_TRIGGER_LINGER_TICKS
+            }
             playerView.redo
                 .onEach { removeRecord(it.id) }
                 .clear()

@@ -1,6 +1,5 @@
 package com.github.unstoppalezzz.reden.mixin.undo;
 
-import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -31,9 +30,9 @@ public class MixinExplosion implements UndoableAccess {
     )
     private void onInit(CallbackInfo ci) {
         if (level.isClientSide) return;
-        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
-        if (recording != null) {
-            undoId = recording.getId();
+        long id = UndoMixinHelper.inheritedRecordId();
+        if (id != 0) {
+            undoId = id;
         }
     }
 
@@ -68,9 +67,9 @@ public class MixinExplosion implements UndoableAccess {
         at = @At("RETURN")
     )
     private void onInit(CallbackInfo ci) {
-        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
-        if (recording != null) {
-            undoId = recording.getId();
+        long id = UndoMixinHelper.inheritedRecordId();
+        if (id != 0) {
+            undoId = id;
         }
     }
 

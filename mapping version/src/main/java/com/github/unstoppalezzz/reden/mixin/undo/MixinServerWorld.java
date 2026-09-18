@@ -3,6 +3,7 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.BlockEventData;
@@ -10,6 +11,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ServerLevel.class)
@@ -42,7 +44,7 @@ public abstract class MixinServerWorld {
     )
     private void beforeProcessBlockEvent(BlockEventData event, CallbackInfoReturnable<Boolean> cir) {
         long undoId = ((UndoableAccess) event).getUndoId$reden();
-        UndoMixinHelper.pushRecord(undoId, () -> "block event/" + event.pos().toShortString());
+        UndoMixinHelper.pushRecord(UndoMixinHelper.attributedRecordId(undoId), () -> "block event/" + event.pos().toShortString());
     }
 
     @Inject(
@@ -63,5 +65,12 @@ public abstract class MixinServerWorld {
     )
     private void afterSpawn(Entity entity, CallbackInfoReturnable<Boolean> cir) {
         UndoMixinHelper.isInitializingEntity = false;
+    }
+
+    @Inject(method = "blockEvent", at = @At("HEAD"), cancellable = true)
+    private void beforeAddBlockEvent(BlockPos pos, net.minecraft.world.level.block.Block block, int id, int param, CallbackInfo ci) {
+        if (UndoMixinHelper.isFrozen(pos, ((ServerLevel) (Object) this).getServer().getTickCount())) {
+            ci.cancel();
+        }
     }
 }

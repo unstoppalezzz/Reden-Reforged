@@ -1,6 +1,5 @@
 package com.github.unstoppalezzz.reden.mixin.undo;
 
-import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import net.minecraft.world.entity.Entity;
@@ -23,9 +22,11 @@ public abstract class MixinTntEntity extends Entity implements UndoableAccess {
             at = @At("RETURN")
     )
     private void onInit(EntityType<?> entityType, Level level, CallbackInfo ci) {
-        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
-        if (!level.isClientSide() && recording != null) {
-            setUndoId$reden(recording.getId());
+        if (!level.isClientSide()) {
+            long id = UndoMixinHelper.inheritedRecordId();
+            if (id != 0) {
+                setUndoId$reden(id);
+            }
         }
     }
 

@@ -30,6 +30,17 @@ class Undo(
     override fun type() = ID
 
     companion object : PacketCodecHelper<Undo> by PacketCodec(Reden.identifier("undo")) {
+        private fun isUpdateSensitive(state: net.minecraft.world.level.block.state.BlockState): Boolean {
+            val block = state.block
+            return block is net.minecraft.world.level.block.TripWireBlock ||
+                block is net.minecraft.world.level.block.TripWireHookBlock ||
+                block is net.minecraft.world.level.block.DetectorRailBlock ||
+                block is net.minecraft.world.level.block.ObserverBlock ||
+                block is net.minecraft.world.level.block.DispenserBlock ||
+                block is net.minecraft.world.level.block.piston.PistonBaseBlock ||
+                block is net.minecraft.world.level.block.piston.PistonHeadBlock
+        }
+
         private fun refreshComparatorState(world: ServerLevel, pos: BlockPos) {
             try {
                 val state = world.getBlockState(pos)
@@ -92,11 +103,28 @@ class Undo(
 
         private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true) {
             val restoredPositions = mutableListOf<BlockPos>()
+            val skippedStale = mutableListOf<BlockPos>()
+            val skippedMoving = mutableListOf<BlockPos>()
+            val movingRestores = mutableListOf<Triple<BlockPos, BlockPos, net.minecraft.world.level.block.state.BlockState>>()
             record.data.forEach { (posLong, entry) ->
                 val pos = BlockPos.of(posLong)
                 val currentState = world.getBlockState(pos)
                 val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
                 if (sec.getModifyTime(pos) < entry.time && isUndo) {
+                    skippedStale += pos
+                    return@forEach
+                }
+                if (entry.state.block is net.minecraft.world.level.block.piston.MovingPistonBlock) {
+                    val tag = entry.beData as? CompoundTag
+                    val carried = tag?.get("blockState")
+                        ?.let { net.minecraft.world.level.block.state.BlockState.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, it).result().orElse(null) }
+                    if (tag == null || carried == null || tag.getBooleanOr("source", false)) {
+                        skippedMoving += pos
+                        return@forEach
+                    }
+                    val facing = net.minecraft.core.Direction.from3DDataValue(tag.getIntOr("facing", 0))
+                    val moveDir = if (tag.getBooleanOr("extending", true)) facing else facing.opposite
+                    movingRestores += Triple(pos, pos.relative(moveDir.opposite), carried)
                     return@forEach
                 }
                 world.modified(pos, entry.time)
@@ -161,14 +189,21 @@ class Undo(
                     (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
                 }
             }
+            
+            val rideRelations = mutableListOf<Triple<net.minecraft.world.entity.Entity, net.minecraft.world.entity.Entity?, List<net.minecraft.world.entity.Entity>>>()
             record.entities.forEach {
                 val entity = world.getEntity(it.key)
+                if (entity != null && it.value != PlayerData.NotExistEntityEntry &&
+                    (entity.isPassenger || entity.passengers.isNotEmpty())
+                ) {
+                    rideRelations += Triple(entity, entity.vehicle, entity.passengers.toList())
+                }
                 if (entity == null) {
                     if (it.value != PlayerData.NotExistEntityEntry) {
                         val entry = it.value
+                        if (entry.nbt.size() == 0) return@forEach
                         debugLogger("undo entity ${it.key} spawning")
                         val newEntity = entry.entity!!.spawn(world, { newEntity ->
-                            // Note: uuid is different from the original one, set it manually
                             newEntity.uuid = it.key
                         },
 //? if <= 1.21.1 {
@@ -192,15 +227,47 @@ class Undo(
                     if (it.value == PlayerData.NotExistEntityEntry) {
                         debugLogger("undo entity ${it.key} removing")
                         entity.discard()
+                    } else if (it.value.nbt.size() == 0) {
+                        debugLogger("undo entity ${it.key} has empty nbt, skipping")
                     } else {
                         val entry = it.value
                         debugLogger("undo entity ${it.key} reading nbt")
                         if (entity is Mob) {
                             entity.removeFreeWill()
                         }
+                        entity.load(entry.nbt)
                     }
                 }
             }
+
+            rideRelations.forEach { (entity, vehicleBefore, passengersBefore) ->
+                if (entity.isRemoved) return@forEach
+                if (vehicleBefore != null && !vehicleBefore.isRemoved && entity.vehicle != vehicleBefore) {
+                    entity.startRiding(vehicleBefore, true, false)
+                }
+                passengersBefore.forEach { passenger ->
+                    if (!passenger.isRemoved && passenger.vehicle != entity) {
+                        passenger.startRiding(entity, true, false)
+                    }
+                }
+            }
+
+            movingRestores.forEach { (dest, _, _) ->
+                world.modified(dest, world.server.tickCount)
+                world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
+                restoredPositions += dest
+            }
+            movingRestores.forEach { (dest, origin, carried) ->
+                world.modified(origin, world.server.tickCount)
+                world.setBlockNoPP(origin, carried)
+                restoredPositions += origin
+            }
+
+        
+            val now = world.server.tickCount
+            UndoMixinHelper.freezePositions(
+                restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
+            )
 
             restoredPositions
                 .filter { pos ->
@@ -216,17 +283,13 @@ class Undo(
                 if (last.data.isNotEmpty() || last.entities.isNotEmpty()) {
                     return last
                 }
-                // if the last record is empty, remove it
                 UndoMixinHelper.removeRecord(last.id)
                 this.removeLast()
             }
             return null
         }
         fun register() {
-            // Register codec for client->server payloads
             PayloadTypeRegistry.playC2S().register(ID, CODEC)
-            // Instead of sending a custom S2C packet back (which requires client-side payload registration),
-            // we will send localized system messages directly from server to avoid unknown-payload warnings.
             ServerPlayNetworking.registerGlobalReceiver(ID) { packet, context ->
                 val view = context.player().data()
                 fun sendStatus(status: Int) {

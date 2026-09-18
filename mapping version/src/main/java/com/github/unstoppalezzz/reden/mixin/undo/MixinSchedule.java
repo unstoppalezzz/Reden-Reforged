@@ -1,9 +1,10 @@
 package com.github.unstoppalezzz.reden.mixin.undo;
 
-import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import com.github.unstoppalezzz.reden.utils.DebugKt;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.ticks.LevelTicks;
@@ -28,7 +29,7 @@ public class MixinSchedule {
     private <T> void onRunSchedule(BiConsumer<BlockPos, T> biConsumer, CallbackInfo ci, @Local ScheduledTick scheduledTick) {
         if (1 == 1) {
             long undoId = ((UndoableAccess) scheduledTick).getUndoId$reden();
-            UndoMixinHelper.pushRecord(undoId, () -> "scheduled tick/" + scheduledTick.pos().toShortString());
+            UndoMixinHelper.pushRecord(UndoMixinHelper.attributedRecordId(undoId), () -> "scheduled tick/" + scheduledTick.pos().toShortString());
         }
     }
     @Inject(
@@ -44,6 +45,24 @@ public class MixinSchedule {
             UndoMixinHelper.popRecord(() -> "scheduled tick/" + scheduledTick.pos().toShortString());
         }
     }
+    @WrapOperation(
+            method = "runCollectedTicks",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Ljava/util/function/BiConsumer;accept(Ljava/lang/Object;Ljava/lang/Object;)V"
+            )
+    )
+    private void wrapRunSchedule(BiConsumer consumer, Object pos, Object type, Operation<Void> original, @Local ScheduledTick scheduledTick) {
+        int now = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
+        int until = UndoMixinHelper.frozenUntil(scheduledTick.pos(), now);
+        if (until == -1) {
+            original.call(consumer, pos, type);
+            return;
+        }
+        ((LevelTicks) (Object) this).schedule(new ScheduledTick(
+                scheduledTick.type(), scheduledTick.pos(), scheduledTick.triggerTick() + (until - now) + 1, 0L));
+    }
+
     @Inject(
             method = "schedule",
             at = @At(
@@ -51,11 +70,11 @@ public class MixinSchedule {
             )
     )
     private <T> void onAddSchedule(ScheduledTick<T> scheduledTick, CallbackInfo ci) {
-        PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
-        if (recording != null) {
-            DebugKt.debugLogger.invoke("Scheduled tick at " + scheduledTick.pos() + ", adding it into record " + recording.getId());
-            // inherit parent id
-            ((UndoableAccess) scheduledTick).setUndoId$reden(recording.getId());
+        long id = UndoMixinHelper.inheritedRecordId();
+        if (id != 0) {
+            DebugKt.debugLogger.invoke("Scheduled tick at " + scheduledTick.pos() + ", adding it into record " + id);
+            // inherit parent (or lingering) id
+            ((UndoableAccess) scheduledTick).setUndoId$reden(id);
         }
     }
 }
