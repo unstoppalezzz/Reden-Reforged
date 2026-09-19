@@ -44,7 +44,7 @@ object UndoMixinHelper {
     private fun withLingeringRecord(world: ServerLevel, block: () -> Unit): Boolean {
         if (com.github.unstoppalezzz.reden.utils.gameFrozen) return false
         val id = pendingLingerRecordId ?: return false
-        if (com.github.unstoppalezzz.reden.utils.gameTick > pendingLingerExpireTick) return false
+        if (com.github.unstoppalezzz.reden.utils.server.tickCount > pendingLingerExpireTick) return false
         val rec = undoRecordsMap[id] ?: return false
         undoRecords.add(UndoRecordEntry(id, rec, "entity_trigger_linger"))
         try {
@@ -53,7 +53,7 @@ object UndoMixinHelper {
             undoRecords.removeLast()
         }
       
-        pendingLingerExpireTick = com.github.unstoppalezzz.reden.utils.gameTick + ENTITY_TRIGGER_LINGER_TICKS
+        pendingLingerExpireTick = com.github.unstoppalezzz.reden.utils.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS
         return true
     }
 
@@ -62,7 +62,7 @@ object UndoMixinHelper {
         recording?.let { return it.id }
         if (com.github.unstoppalezzz.reden.utils.gameFrozen) return 0L
         val id = pendingLingerRecordId ?: return 0L
-        if (com.github.unstoppalezzz.reden.utils.gameTick > pendingLingerExpireTick) return 0L
+        if (com.github.unstoppalezzz.reden.utils.server.tickCount > pendingLingerExpireTick) return 0L
         if (undoRecordsMap[id] == null) return 0L
         return id
     }
@@ -79,7 +79,7 @@ object UndoMixinHelper {
 
     private fun shouldSkipGenericSnapshotOrigin(world: ServerLevel, origin: BlockPos, isDirectTrigger: Boolean): Boolean {
         if (isDirectTrigger) return false
-        resetPerTickThrottlesIfNeeded(com.github.unstoppalezzz.reden.utils.gameTick)
+        resetPerTickThrottlesIfNeeded(com.github.unstoppalezzz.reden.utils.server.tickCount)
         return !genericOriginsExpandedThisTick.add(origin.asLong())
     }
 
@@ -433,7 +433,7 @@ object UndoMixinHelper {
             }
         } catch (_: Throwable) {
         }
-        recording?.lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick
+        recording?.lastChangedTick = com.github.unstoppalezzz.reden.utils.server.tickCount
     }
 
     private fun isNextToLingeringRecord(pos: BlockPos): Boolean {
@@ -495,11 +495,11 @@ object UndoMixinHelper {
                 }
             } catch (_: Throwable) {
             }
-            recording?.lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick
+            recording?.lastChangedTick = com.github.unstoppalezzz.reden.utils.server.tickCount
         }
     }
 
-    fun ServerLevel.modified(pos: BlockPos, time: Int = com.github.unstoppalezzz.reden.utils.gameTick) = getChunk(pos).run {
+    fun ServerLevel.modified(pos: BlockPos, time: Int = com.github.unstoppalezzz.reden.utils.server.tickCount) = getChunk(pos).run {
         //? if <= 1.21.1
         /*isUnsaved = true*/
         //? if >= 1.21.2
@@ -544,9 +544,9 @@ object UndoMixinHelper {
         val undoRecord = PlayerData.UndoRecord(
             id = recordId,
             //? if <= 1.21.5
-            /*lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick,*/
+            /*lastChangedTick = com.github.unstoppalezzz.reden.utils.server.tickCount,*/
             //? if >= 1.21.6
-            lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick,
+            lastChangedTick = com.github.unstoppalezzz.reden.utils.server.tickCount,
             cause = cause
         )
         undoRecordsMap[recordId] = undoRecord
@@ -585,9 +585,9 @@ object UndoMixinHelper {
                 pendingLingerRecordId = stoppingRecordId
                 pendingLingerExpireTick =
                     //? if <= 1.21.5
-                    /*com.github.unstoppalezzz.reden.utils.gameTick + ENTITY_TRIGGER_LINGER_TICKS*/
+                    /*com.github.unstoppalezzz.reden.utils.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS*/
                     //? if >= 1.21.6
-                    com.github.unstoppalezzz.reden.utils.gameTick + ENTITY_TRIGGER_LINGER_TICKS
+                    com.github.unstoppalezzz.reden.utils.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS
             }
             playerView.redo
                 .onEach { removeRecord(it.id) }

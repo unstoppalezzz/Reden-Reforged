@@ -3,6 +3,10 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import com.github.unstoppalezzz.reden.utils.DebugKt;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.piston.PistonMovingBlockEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -44,6 +48,34 @@ public class MixinPistonEntity implements UndoableAccess {
     private void afterFinish(CallbackInfo ci) {
         if (undoId != 0) {
             DebugKt.debugLogger.invoke("---Piston finished, removing it from record "+ undoId);
+        }
+    }
+
+    // Entities are pushed on the ticks *before* the piston finishes, when no record is active.
+    // Keep the record active only around the entity movement so their old state gets saved.
+    @WrapMethod(method = "moveCollidedEntities")
+    private static void reden$trackCollided(Level level, BlockPos pos, float f, PistonMovingBlockEntity be, Operation<Void> original) {
+        reden$withRecord(level, pos, be, () -> original.call(level, pos, f, be));
+    }
+
+    @WrapMethod(method = "moveStuckEntities")
+    private static void reden$trackStuck(Level level, BlockPos pos, float f, PistonMovingBlockEntity be, Operation<Void> original) {
+        reden$withRecord(level, pos, be, () -> original.call(level, pos, f, be));
+    }
+
+    @Unique
+    private static void reden$withRecord(Level level, BlockPos pos, PistonMovingBlockEntity be, Runnable action) {
+        long id = level.isClientSide() ? 0 : ((UndoableAccess) be).getUndoId$reden();
+        if (id == 0 || UndoMixinHelper.INSTANCE.getRecording() != null) {
+            action.run();
+            return;
+        }
+        String reason = "piston entities/" + pos.toShortString();
+        UndoMixinHelper.pushRecord(id, () -> reason);
+        try {
+            action.run();
+        } finally {
+            UndoMixinHelper.popRecord(() -> reason);
         }
     }
 }

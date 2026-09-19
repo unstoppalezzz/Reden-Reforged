@@ -14,13 +14,16 @@ import org.spongepowered.asm.mixin.Overwrite;
 
 @Mixin(MovingPistonBlock.class)
 public class MixinMovingPiston {
+    /**
+     * @author unstoppalezzz
+     * @reason track undo, block entity tick is not the same time as block event tick
+     */
     @Overwrite
     @Nullable
     public BlockEntityTicker<PistonMovingBlockEntity> getTicker(Level level, BlockState blockState, BlockEntityType<PistonMovingBlockEntity> type) {
         return (world1, pos, state1, be) -> {
-            boolean shouldTrack = !world1.isClientSide() // server side
-                    && (be.getProgress(1) >= 1.0f // current progress, delta=1
-                    || (be instanceof UndoableAccess a && a.getUndoId$reden() != 0));
+            boolean shouldTrack = be.getProgress(1) >= 1.0f // current progress, delta=1
+                    && !world1.isClientSide(); // server side
             if (shouldTrack) {
                 if (be instanceof UndoableAccess access) {
                     UndoMixinHelper.pushRecord(access.getUndoId$reden(), () -> "piston block entity tick/" + pos.toShortString());

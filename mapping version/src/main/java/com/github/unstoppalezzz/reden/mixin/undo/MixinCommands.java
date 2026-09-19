@@ -9,6 +9,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -35,6 +36,7 @@ public class MixinCommands {
             )
     )
     private void onExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfo ci) {
+        if (reden$isTickCommand(command)) return;
         if (parseResults.getContext().getSource().getEntity() instanceof ServerPlayer player) {
             UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.COMMAND);
         }
@@ -49,8 +51,17 @@ public class MixinCommands {
             )
     )
     private void afterExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfo ci) {
+        if (reden$isTickCommand(command)) return;
         if (parseResults.getContext().getSource().getEntity() instanceof ServerPlayer player) {
             UndoMixinHelper.playerStopRecording(player);
         }
+    }
+
+    /** /tick freeze, /tick step etc. only control the tick rate; they are not an undoable player action. */
+    @Unique
+    private static boolean reden$isTickCommand(String command) {
+        String trimmed = command.stripLeading();
+        if (trimmed.startsWith("/")) trimmed = trimmed.substring(1);
+        return trimmed.equals("tick") || trimmed.startsWith("tick ");
     }
 }

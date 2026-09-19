@@ -40,7 +40,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     @Override
     public void saveLastNbt$reden() {
         if (level != null && !level.isClientSide()) {
-            if (lastSaveTime == com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick()) {
+            if (lastSaveTime == com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount()) {
                 return;
             }
             if (isComponentsValid(components)) {
@@ -56,7 +56,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 } catch (Throwable t) {
                 }
             }
-            lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick();
+            lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
         }
     }
 

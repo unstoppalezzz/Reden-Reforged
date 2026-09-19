@@ -253,18 +253,18 @@ class Undo(
             }
 
             movingRestores.forEach { (dest, _, _) ->
-                world.modified(dest, com.github.unstoppalezzz.reden.utils.gameTick)
+                world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
                 restoredPositions += dest
             }
             movingRestores.forEach { (dest, origin, carried) ->
-                world.modified(origin, com.github.unstoppalezzz.reden.utils.gameTick)
+                world.modified(origin, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(origin, carried)
                 restoredPositions += origin
             }
 
         
-            val now = com.github.unstoppalezzz.reden.utils.gameTick
+            val now = com.github.unstoppalezzz.reden.utils.server.tickCount
             UndoMixinHelper.freezePositions(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
@@ -318,7 +318,7 @@ class Undo(
                 when (packet.status) {
                     0 -> view.undo.lastValid()?.let { undoRecord ->
                         view.undo.removeLast()
-                        UndoMixinHelper.removeRecord(undoRecord.id) // no longer monitoring rollbacked record
+                        UndoMixinHelper.removeRecord(undoRecord.id) 
                         server.execute {
                             view.redo.add(
                                 PlayerData.RedoRecord(

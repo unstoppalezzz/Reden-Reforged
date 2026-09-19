@@ -49,7 +49,7 @@ public class MixinTripWireBlock {
     @Inject(method = "entityInside", at = @At("HEAD"), cancellable = true)
     private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean bl, CallbackInfo ci) {
         if (level.isClientSide()) return;
-        int now = com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick();
+        int now = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
         if (UndoMixinHelper.isFrozen(pos, now)) {
             ci.cancel();
             return;

@@ -44,7 +44,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     public void saveLastNbt$reden() {
         if (level != null && !level.isClientSide()) {
             DebugKt.debugLogger.invoke("before saving lastNBT at " + worldPosition.toShortString() + ", nbt=" + lastSavedNbt + ", components=" + components);
-            if (lastSaveTime == com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick()) {
+            if (lastSaveTime == com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount()) {
                 return;
             }
             if (isComponentsValid(components)) {
@@ -56,7 +56,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 lastSavedNbt = vo.buildResult();
                 DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
             }
-            lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick();
+            lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
         }
     }
 

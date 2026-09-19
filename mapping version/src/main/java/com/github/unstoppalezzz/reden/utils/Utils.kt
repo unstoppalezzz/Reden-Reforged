@@ -33,9 +33,6 @@ import kotlin.math.min
 
 lateinit var server: MinecraftServer
 
-
-val gameTick: Int get() = server.overworld().gameTime.toInt()
-
 val gameFrozen: Boolean get() = server.tickRateManager().isFrozen
 
 fun Position.toBlockPos(): BlockPos {

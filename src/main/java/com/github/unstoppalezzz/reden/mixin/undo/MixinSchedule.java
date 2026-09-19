@@ -52,7 +52,7 @@ public class MixinSchedule {
             )
     )
     private void wrapRunSchedule(BiConsumer consumer, Object pos, Object type, Operation<Void> original, @Local ScheduledTick scheduledTick) {
-        int now = com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick();
+        int now = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
         int until = UndoMixinHelper.frozenUntil(scheduledTick.pos(), now);
         if (until == -1) {
             original.call(consumer, pos, type);
