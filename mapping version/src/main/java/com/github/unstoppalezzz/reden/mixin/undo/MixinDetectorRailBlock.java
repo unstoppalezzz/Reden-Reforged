@@ -49,7 +49,7 @@ public class MixinDetectorRailBlock {
     @Inject(method = "entityInside", at = @At("HEAD"), cancellable = true)
     private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean bl, CallbackInfo ci) {
         if (level.isClientSide()) return;
-        int now = level.getServer().getTickCount();
+        int now = com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick();
         if (UndoMixinHelper.isFrozen(pos, now)) {
             ci.cancel();
             return;

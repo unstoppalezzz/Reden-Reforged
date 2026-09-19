@@ -33,6 +33,11 @@ import kotlin.math.min
 
 lateinit var server: MinecraftServer
 
+
+val gameTick: Int get() = server.overworld().gameTime.toInt()
+
+val gameFrozen: Boolean get() = server.tickRateManager().isFrozen
+
 fun Position.toBlockPos(): BlockPos {
     return BlockPos.containing(this)
 }
@@ -46,7 +51,6 @@ fun Player.sendMessage(s: String) {
 }
 
 fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDATE_CLIENTS) {
-//    setBlockState(pos, state, flags and Block.NOTIFY_NEIGHBORS.inv() or Block.FORCE_STATE or Block.SKIP_DROPS)
     val stateBefore = getBlockState(pos)
     if (stateBefore.hasBlockEntity()) {
         removeBlockEntity(pos)
@@ -54,21 +58,10 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
     getChunk(pos).run { getSection(getSectionIndex(pos.y)) }
         .setBlockState(pos.x and 15, pos.y and 15, pos.z and 15, state, false)
     getChunkAt(pos).run {
-        // Heightmap API changed in 1.21.11; preserve behavior by marking chunk unsaved.
-        // TODO: replace with proper Heightmap update calls for 1.21.11.
-        // Previous calls updated heightmaps for MOTION_BLOCKING, MOTION_BLOCKING_NO_LEAVES,
-        // OCEAN_FLOOR and WORLD_SURFACE.
-        //? if <= 1.21.1 {
-        /*isUnsaved = true
-        *///?} else {
+       
         markUnsaved()
-        //?}
-
-        //? if <= 1.21.1 {
-        /*if (LightEngine.hasDifferentLightProperties(this, pos, stateBefore, state)) {
-        *///?} else {
+       
         if (LightEngine.hasDifferentLightProperties(stateBefore, state)) {
-        //?}
             skyLightSources.update(this, pos.x and 15, pos.y and 15, pos.z and 15)
             chunkSource.lightEngine.checkBlock(pos)
         }
@@ -119,7 +112,6 @@ object ResourceLoader {
     @JvmStatic
     fun loadLang(lang: String) =
         loadStringOrNull("assets/reden/lang/$lang.json")?.let {
-            // work around for owo rich translate
             @Suppress("UNCHECKED_CAST")
             Gson().fromJson(it, Map::class.java).filterValues { value -> value is String } as Map<String, String>
         }
@@ -212,10 +204,6 @@ fun generateRandomColor(alpha: Int, baseGray: Int, offsetWeight: Float): Int {
     // 返回合并后的ARGB值
     return (a shl 24) or rgb
 }
-
-//val redenApiBaseUrl: String
-//    get() = if (isClient && DEVELOPER_MODE.booleanValue) LOCAL_API_BASEURL.stringValue
-//    else "https://api.redenmc.com/api"
 
 infix fun Int.has(flag: Int) = (this and flag) == flag
 

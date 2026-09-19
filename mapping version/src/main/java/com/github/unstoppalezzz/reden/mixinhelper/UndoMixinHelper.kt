@@ -41,9 +41,11 @@ object UndoMixinHelper {
     private var pendingLingerRecordId: Long? = null
     private var pendingLingerExpireTick: Int = Int.MIN_VALUE
 
+ 
     private fun withLingeringRecord(world: ServerLevel, block: () -> Unit): Boolean {
+        if (com.github.unstoppalezzz.reden.utils.gameFrozen) return false
         val id = pendingLingerRecordId ?: return false
-        if (world.server.tickCount > pendingLingerExpireTick) return false
+        if (com.github.unstoppalezzz.reden.utils.gameTick > pendingLingerExpireTick) return false
         val rec = undoRecordsMap[id] ?: return false
         undoRecords.add(UndoRecordEntry(id, rec, "entity_trigger_linger"))
         try {
@@ -52,15 +54,16 @@ object UndoMixinHelper {
             undoRecords.removeLast()
         }
       
-        pendingLingerExpireTick = world.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS
+        pendingLingerExpireTick = com.github.unstoppalezzz.reden.utils.gameTick + ENTITY_TRIGGER_LINGER_TICKS
         return true
     }
 
     @JvmStatic
     fun inheritedRecordId(): Long {
         recording?.let { return it.id }
+        if (com.github.unstoppalezzz.reden.utils.gameFrozen) return 0L
         val id = pendingLingerRecordId ?: return 0L
-        if (com.github.unstoppalezzz.reden.utils.server.tickCount > pendingLingerExpireTick) return 0L
+        if (com.github.unstoppalezzz.reden.utils.gameTick > pendingLingerExpireTick) return 0L
         if (undoRecordsMap[id] == null) return 0L
         return id
     }
@@ -77,7 +80,7 @@ object UndoMixinHelper {
 
     private fun shouldSkipGenericSnapshotOrigin(world: ServerLevel, origin: BlockPos, isDirectTrigger: Boolean): Boolean {
         if (isDirectTrigger) return false
-        resetPerTickThrottlesIfNeeded(world.server.tickCount)
+        resetPerTickThrottlesIfNeeded(com.github.unstoppalezzz.reden.utils.gameTick)
         return !genericOriginsExpandedThisTick.add(origin.asLong())
     }
 
@@ -165,12 +168,14 @@ object UndoMixinHelper {
     private val frozenPositions = HashMap<Long, Int>()
 
     fun freezePositions(positions: Collection<BlockPos>, untilTick: Int, nowTick: Int) {
+        if (com.github.unstoppalezzz.reden.utils.gameFrozen) return
         frozenPositions.values.removeIf { it < nowTick }
         positions.forEach { frozenPositions[it.asLong()] = untilTick }
     }
 
     @JvmStatic
     fun frozenUntil(pos: BlockPos, tick: Int): Int {
+        if (com.github.unstoppalezzz.reden.utils.gameFrozen) return -1
         val until = frozenPositions[pos.asLong()] ?: return -1
         return if (tick > until) -1 else until
     }
@@ -187,6 +192,7 @@ object UndoMixinHelper {
     @JvmStatic
     fun attributedRecordId(id: Long): Long {
         if (id == 0L) return 0L
+        if (com.github.unstoppalezzz.reden.utils.gameFrozen) return id
         val newest = undoRecordsMap.keys.maxOrNull() ?: return id
         return if (newest > id) newest else id
     }
@@ -428,7 +434,7 @@ object UndoMixinHelper {
             }
         } catch (_: Throwable) {
         }
-        recording?.lastChangedTick = world.server.tickCount
+        recording?.lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick
     }
 
     private fun isNextToLingeringRecord(pos: BlockPos): Boolean {
@@ -490,11 +496,11 @@ object UndoMixinHelper {
                 }
             } catch (_: Throwable) {
             }
-            recording?.lastChangedTick = world.server.tickCount
+            recording?.lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick
         }
     }
 
-    fun ServerLevel.modified(pos: BlockPos, time: Int = server.tickCount) = getChunk(pos).run {
+    fun ServerLevel.modified(pos: BlockPos, time: Int = com.github.unstoppalezzz.reden.utils.gameTick) = getChunk(pos).run {
         //? if <= 1.21.1
         /*isUnsaved = true*/
         //? if >= 1.21.2
@@ -539,9 +545,9 @@ object UndoMixinHelper {
         val undoRecord = PlayerData.UndoRecord(
             id = recordId,
             //? if <= 1.21.5
-            /*lastChangedTick = player.server.tickCount,*/
+            /*lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick,*/
             //? if >= 1.21.6
-            lastChangedTick = player.level().server.tickCount,
+            lastChangedTick = com.github.unstoppalezzz.reden.utils.gameTick,
             cause = cause
         )
         undoRecordsMap[recordId] = undoRecord
@@ -580,9 +586,9 @@ object UndoMixinHelper {
                 pendingLingerRecordId = stoppingRecordId
                 pendingLingerExpireTick =
                     //? if <= 1.21.5
-                    /*player.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS*/
+                    /*com.github.unstoppalezzz.reden.utils.gameTick + ENTITY_TRIGGER_LINGER_TICKS*/
                     //? if >= 1.21.6
-                    player.level().server.tickCount + ENTITY_TRIGGER_LINGER_TICKS
+                    com.github.unstoppalezzz.reden.utils.gameTick + ENTITY_TRIGGER_LINGER_TICKS
             }
             playerView.redo
                 .onEach { removeRecord(it.id) }
@@ -604,9 +610,15 @@ object UndoMixinHelper {
 
     @JvmStatic
     fun tryAddRelatedEntity(entity: Entity) {
+        if (isInitializingEntity) return
+        recordEntityState(entity)
+    }
+
+    @JvmStatic
+    fun recordEntityState(entity: Entity) {
         if (entity.noPhysics) return
         if (entity is ServerPlayer) return
-        if (!isInitializingEntity) {
+        run {
             recording?.entities?.computeIfAbsent(entity.uuid) {
                 //? if < 1.21.6 {
                 /*PlayerData.EntityEntryImpl(entity.type, CompoundTag().apply(entity::saveWithoutId), entity.blockPosition())

@@ -186,17 +186,6 @@ tasks.register<Copy>("buildAndCollect") {
     into(rootProject.layout.buildDirectory.file("libs/${mod.version}"))
     dependsOn("build")
 }
-// 使用buildSrc中的自定义任务来映射方法名
-tasks.register<com.github.unstoppalezzz.reden.build.MapMojangToIntermediaryTask>("mapMojangToIntermediary") {
-    inputFile.set(rootProject.file("src/methods.txt"))
-    outputFile.set(project.file("build/mapped-methods.txt"))
-    minecraftVersion.set(stonecutter.current.version)
-
-    outputs.upToDateWhen {
-        false
-    }
-}
-
 publishMods {
     file = tasks.remapJar.get().archiveFile
     displayName = "${mod.name} ${mod.version} for $mcVersion"

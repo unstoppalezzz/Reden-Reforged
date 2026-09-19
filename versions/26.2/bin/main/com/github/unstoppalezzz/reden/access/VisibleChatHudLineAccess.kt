@@ -1,0 +1,10 @@
+package com.github.unstoppalezzz.reden.access
+
+import net.minecraft.network.chat.Component
+
+interface VisibleChatHudLineAccess {
+    @Suppress("INAPPLICABLE_JVM_NAME")
+    @get:JvmName("getText\$reden")
+    @set:JvmName("setText\$reden")
+    var text: Component?
+}

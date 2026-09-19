@@ -1,6 +1,8 @@
 .gradle
 .kotlin
-buildSrc/.gradle
-buildSrc/.kotlin
-buildSrc/build/
-mapping version/buildSrc/build/
+build/reports/
+buildSrc/build/classes
+mapping version/build/reports/
+mapping version/buildSrc/build/classes
+.vscode/
+mapping version/.vscode/

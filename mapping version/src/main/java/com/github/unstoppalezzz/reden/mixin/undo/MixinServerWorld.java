@@ -24,7 +24,7 @@ public abstract class MixinServerWorld {
                     remap = false
             )
     )
-    private Object beforeAddSyncedBlockEvent(Object event) { // BlockEvent
+    private Object beforeAddSyncedBlockEvent(Object event) {
         if (event instanceof UndoableAccess access) {
             PlayerData.UndoRecord recording = UndoMixinHelper.INSTANCE.getRecording();
             if (recording != null) {
@@ -69,7 +69,7 @@ public abstract class MixinServerWorld {
 
     @Inject(method = "blockEvent", at = @At("HEAD"), cancellable = true)
     private void beforeAddBlockEvent(BlockPos pos, net.minecraft.world.level.block.Block block, int id, int param, CallbackInfo ci) {
-        if (UndoMixinHelper.isFrozen(pos, ((ServerLevel) (Object) this).getServer().getTickCount())) {
+        if (UndoMixinHelper.isFrozen(pos, com.github.unstoppalezzz.reden.utils.UtilsKt.getGameTick())) {
             ci.cancel();
         }
     }
