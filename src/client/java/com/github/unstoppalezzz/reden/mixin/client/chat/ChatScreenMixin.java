@@ -11,7 +11,11 @@ import net.minecraft.client.multiplayer.chat.GuiMessage;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
+//? if >= 26.3 {
+import net.minecraft.client.input.MouseButtonEvent;
+//?} else {
+/*import org.lwjgl.glfw.GLFW;
+*///?}
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -82,7 +86,20 @@ public abstract class ChatScreenMixin extends Screen {
         }
     }
 
+//? if >= 26.3 {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    private void mouseClicked(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        // 26.3 moved to SDL, whose right mouse button is 3 (GLFW's was 1)
+        if (quickMenuWidget != null && quickMenuWidget.mouseClicked(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (event.button() == 3 && MalilibSettingsKt.CHAT_RIGHT_CLICK_MENU.getBooleanValue()) {
+            cir.setReturnValue(true);
+        }
+    }
+//?} else {
+/*    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void mouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         if (quickMenuWidget != null && quickMenuWidget.mouseClicked(mouseX, mouseY, button)) {
             cir.setReturnValue(true);
@@ -92,6 +109,7 @@ public abstract class ChatScreenMixin extends Screen {
             cir.setReturnValue(true);
         }
     }
+*///?}
 
     @Unique
     private ChatScreen reden$getThis() {

@@ -48,8 +48,6 @@ public class MixinPistonEntity implements UndoableAccess {
         }
     }
 
-    // Entities are pushed on the ticks *before* the piston finishes, when no record is active.
-    // Keep the record active only around the entity movement so their old state gets saved.
     @WrapMethod(method = "moveCollidedEntities")
     private static void reden$trackCollided(Level level, BlockPos pos, float f, PistonMovingBlockEntity be, Operation<Void> original) {
         reden$withRecord(level, pos, be, () -> original.call(level, pos, f, be));

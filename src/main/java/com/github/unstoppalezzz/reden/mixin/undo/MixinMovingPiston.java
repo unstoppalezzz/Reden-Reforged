@@ -14,10 +14,6 @@ import org.spongepowered.asm.mixin.Overwrite;
 
 @Mixin(MovingPistonBlock.class)
 public class MixinMovingPiston {
-    /**
-     * @author unstoppalezzz
-     * @reason track undo, block entity tick is not the same time as block event tick
-     */
     @Overwrite
     @Nullable
     public BlockEntityTicker<PistonMovingBlockEntity> getTicker(Level level, BlockState blockState, BlockEntityType<PistonMovingBlockEntity> type) {

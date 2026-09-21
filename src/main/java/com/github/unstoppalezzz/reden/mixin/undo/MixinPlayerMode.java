@@ -27,15 +27,11 @@ public class MixinPlayerMode {
     @Shadow
     protected ServerLevel level;
 
-    // Inject before onBreak
-    // Because tall or wide blocks such as doors or beds override [onBreak] to break the other part.
-    // (Along with AbstractBlock.getStateForNeighborUpdate.)
     @Inject(method = "destroyBlock", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;playerWillDestroy(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/entity/player/Player;)Lnet/minecraft/world/level/block/state/BlockState;"))
     private void onDestroy(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.BREAK_BLOCK);
     }
 
-    // Inject after onBroken
     @Inject(
         method = "destroyBlock",
         at = @At(

@@ -71,7 +71,6 @@ public class MixinSchedule {
     private <T> void onAddSchedule(ScheduledTick<T> scheduledTick, CallbackInfo ci) {
         long id = UndoMixinHelper.inheritedRecordId();
         if (id != 0) {
-            // inherit parent (or lingering) id
             ((UndoableAccess) scheduledTick).setUndoId$reden(id);
         }
     }

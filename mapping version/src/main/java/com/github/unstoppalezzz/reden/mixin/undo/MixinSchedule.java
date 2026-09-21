@@ -73,7 +73,6 @@ public class MixinSchedule {
         long id = UndoMixinHelper.inheritedRecordId();
         if (id != 0) {
             DebugKt.debugLogger.invoke("Scheduled tick at " + scheduledTick.pos() + ", adding it into record " + id);
-            // inherit parent (or lingering) id
             ((UndoableAccess) scheduledTick).setUndoId$reden(id);
         }
     }

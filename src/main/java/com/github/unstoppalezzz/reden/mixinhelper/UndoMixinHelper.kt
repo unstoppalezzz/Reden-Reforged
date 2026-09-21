@@ -119,7 +119,11 @@ object UndoMixinHelper {
             block is net.minecraft.world.level.block.ButtonBlock ||
             block is net.minecraft.world.level.block.PressurePlateBlock ||
             block is net.minecraft.world.level.block.RedstoneTorchBlock ||
-            block is net.minecraft.world.level.block.RedStoneWireBlock ||
+            //? if >= 26.3 {
+            block is net.minecraft.world.level.block.RedstoneWireBlock ||
+            //?} else {
+            /*block is net.minecraft.world.level.block.RedStoneWireBlock ||
+            *///?}
             block is net.minecraft.world.level.block.TargetBlock ||
             block is net.minecraft.world.level.block.NoteBlock ||
             block is net.minecraft.world.level.block.TripWireBlock ||
@@ -566,6 +570,7 @@ object UndoMixinHelper {
     ) {
         val playerView = player.data()
         if (!playerView.canRecord) return
+        if (!playerView.isRecording && undoRecords.size != 0) return
         if (!playerView.isRecording) {
             playerView.isRecording = true
             val record = addRecord(cause, player)

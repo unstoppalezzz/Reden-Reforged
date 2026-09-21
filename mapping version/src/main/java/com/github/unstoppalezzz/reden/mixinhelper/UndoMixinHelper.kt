@@ -567,6 +567,7 @@ object UndoMixinHelper {
     ) {
         val playerView = player.data()
         if (!playerView.canRecord) return
+        if (!playerView.isRecording && undoRecords.size != 0) return
         if (!playerView.isRecording) {
             playerView.isRecording = true
             val record = addRecord(cause, player)
