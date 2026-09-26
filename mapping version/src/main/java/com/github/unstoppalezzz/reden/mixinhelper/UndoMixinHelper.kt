@@ -234,6 +234,8 @@ object UndoMixinHelper {
         transform: (PlayerData.Entry) -> PlayerData.Entry = { it }
     ) {
         val rec = recording ?: return
+        // neighbour scans near the world floor/ceiling reach positions that have no chunk section
+        if (world.isOutsideBuildHeight(pos)) return
         val key = pos.asLong()
         if (world.getBlockState(pos).hasRecordTag()) {
             recordTags[key] = rec.id

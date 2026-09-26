@@ -10,7 +10,11 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry
 import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.network.codec.StreamCodec
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
+//? if >= 1.21.11 {
 import net.minecraft.resources.Identifier
+//?} else {
+/*import net.minecraft.resources.ResourceLocation as Identifier
+*///?}
 import kotlin.reflect.typeOf
 
 @OptIn(ExperimentalSerializationApi::class)

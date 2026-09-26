@@ -56,9 +56,17 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
         .setBlockState(pos.x and 15, pos.y and 15, pos.z and 15, state, false)
     getChunkAt(pos).run {
        
+        //? if >= 1.21.2 {
         markUnsaved()
-       
+        //?} else {
+        /*setUnsaved(true)
+        *///?}
+
+        //? if >= 1.21.2 {
         if (LightEngine.hasDifferentLightProperties(stateBefore, state)) {
+        //?} else {
+        /*if (LightEngine.hasDifferentLightProperties(this@setBlockNoPP, pos, stateBefore, state)) {
+        *///?}
             skyLightSources.update(this, pos.x and 15, pos.y and 15, pos.z and 15)
             chunkSource.lightEngine.checkBlock(pos)
         }

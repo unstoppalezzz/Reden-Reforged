@@ -9,7 +9,7 @@ import org.slf4j.helpers.NOPLogger;
 import com.github.unstoppalezzz.reden.network.ChannelsKt;
 
 public class Reden implements ModInitializer {
-    public static final String MOD_VERSION = /*$ mod_version*/ "0.10.4";
+    public static final String MOD_VERSION = /*$ mod_version*/ "0.11.2";
     public static final String MOD_ID = "reden";
     public static final String MOD_NAME = "Reden";
     public static final Logger LOGGER = NOPLogger.NOP_LOGGER;

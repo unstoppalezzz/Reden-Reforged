@@ -77,12 +77,20 @@ public class MixinExplosion implements UndoableAccess {
     }
 
     @Inject(method = "explode", at = @At("HEAD"))
+    //? if >= 1.21.9 {
     private void beforeDamageEntities(CallbackInfoReturnable<?> ci) {
+    //?} else {
+    /*private void beforeDamageEntities(CallbackInfo ci) {
+    *///?}
         UndoMixinHelper.pushRecord(undoId, () -> "explosion");
     }
 
     @Inject(method = "explode", at = @At("RETURN"))
+    //? if >= 1.21.9 {
     private void afterDamageEntities(CallbackInfoReturnable<?> ci) {
+    //?} else {
+    /*private void afterDamageEntities(CallbackInfo ci) {
+    *///?}
         UndoMixinHelper.popRecord(() -> "explosion");
     }
     //?}

@@ -118,12 +118,22 @@ class Undo(
                     val tag = entry.beData as? CompoundTag
                     val carried = tag?.get("blockState")
                         ?.let { net.minecraft.world.level.block.state.BlockState.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, it).result().orElse(null) }
-                    if (tag == null || carried == null || tag.getBooleanOr("source", false)) {
+                    //? if >= 1.21.5 {
+                    val isSource = tag?.getBooleanOr("source", false) ?: false
+                    //?} else {
+                    /*val isSource = tag?.getBoolean("source") ?: false
+                    *///?}
+                    if (tag == null || carried == null || isSource) {
                         skippedMoving += pos
                         return@forEach
                     }
+                    //? if >= 1.21.5 {
                     val facing = net.minecraft.core.Direction.from3DDataValue(tag.getIntOr("facing", 0))
                     val moveDir = if (tag.getBooleanOr("extending", true)) facing else facing.opposite
+                    //?} else {
+                    /*val facing = net.minecraft.core.Direction.from3DDataValue(tag.getInt("facing"))
+                    val moveDir = if (!tag.contains("extending") || tag.getBoolean("extending")) facing else facing.opposite
+                    *///?}
                     movingRestores += Triple(pos, pos.relative(moveDir.opposite), carried)
                     return@forEach
                 }
@@ -243,11 +253,19 @@ class Undo(
             rideRelations.forEach { (entity, vehicleBefore, passengersBefore) ->
                 if (entity.isRemoved) return@forEach
                 if (vehicleBefore != null && !vehicleBefore.isRemoved && entity.vehicle != vehicleBefore) {
+//? if >= 1.21.9 {
                     entity.startRiding(vehicleBefore, true, false)
+//?} else {
+                    /*entity.startRiding(vehicleBefore, true)
+*///?}
                 }
                 passengersBefore.forEach { passenger ->
                     if (!passenger.isRemoved && passenger.vehicle != entity) {
+//? if >= 1.21.9 {
                         passenger.startRiding(entity, true, false)
+//?} else {
+                        /*passenger.startRiding(entity, true)
+*///?}
                     }
                 }
             }
@@ -290,6 +308,8 @@ class Undo(
         }
         fun register() {
             PayloadTypeRegistry.playC2S().register(ID, CODEC)
+            // the client side receiver (registerClientPackets) needs the clientbound type as well
+            PayloadTypeRegistry.playS2C().register(ID, CODEC)
             ServerPlayNetworking.registerGlobalReceiver(ID) { packet, context ->
                 val view = context.player().data()
                 fun sendStatus(status: Int) {

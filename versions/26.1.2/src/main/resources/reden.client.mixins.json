@@ -4,7 +4,7 @@
   "compatibilityLevel": "JAVA_25",
   "client": [
     "chat.ChatHudMixin",
-    "chat.ChatScreenMixin26_1_2",
+    "chat.ChatScreenMixin",
     "chat.VisibleChatHudLineMixin",
     "keybind.MixinKeyMapping",
     "malilib.IMixinGuiListBase",

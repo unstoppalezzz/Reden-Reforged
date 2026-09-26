@@ -119,15 +119,13 @@ loom {
     accessWidenerPath.set(project.file("src/main/resources/reden.accesswidener"))
 }
 
-// Exclude client sources that depend on Litematica for MC versions where it's not provided
-sourceSets {
-    named("client") {
-        java {
-            if (stonecutter.eval(mcVersion, ">=1.21.9")) {
-                // Keep client sources disabled except for a minimal client-only folder
-                setSrcDirs(listOf("src/client-minimal/java"))
-            }
-        }
+if (stonecutter.eval(mcVersion, ">=1.21.9")) {
+    val keep = { f: java.io.File -> f.name.startsWith("RedenClientMinimal") || f.path.contains("multiver") }
+    tasks.named<org.gradle.api.tasks.compile.JavaCompile>("compileClientJava") {
+        exclude { !it.isDirectory && !keep(it.file) }
+    }
+    tasks.named<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>("compileClientKotlin") {
+        exclude { !it.isDirectory && !keep(it.file) }
     }
 }
 
@@ -144,12 +142,15 @@ tasks.processResources {
     inputs.property("name", mod.name)
     inputs.property("version", mod.version)
     inputs.property("mcdep", mcDep)
+    inputs.property("mcVersion", mcVersion)
 
     val map = mapOf(
         "id" to mod.id,
         "name" to mod.name,
         "version" to mod.version,
         "mcdep" to mcDep,
+        "cliententry" to "com.github.unstoppalezzz.reden." +
+                if (stonecutter.eval(mcVersion, ">=1.21.9")) "RedenClientMinimal" else "RedenClient",
         "malilib" to project.property("deps.malilib") as String
     )
 
@@ -171,15 +172,6 @@ tasks.compileKotlin {
 //    outputs.upToDateWhen { false }
 }
 
-
-                // Ensure Kotlin client sources from the minimal client folder are compiled
-                kotlin {
-                    sourceSets {
-                        getByName("client") {
-                            kotlin.srcDir("src/client-minimal/kotlin")
-                        }
-                    }
-                }
 tasks.register<Copy>("buildAndCollect") {
     group = "build"
     from(tasks.remapJar.get().archiveFile)

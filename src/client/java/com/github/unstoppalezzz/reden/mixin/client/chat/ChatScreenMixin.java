@@ -13,7 +13,10 @@ import net.minecraft.network.chat.Style;
 import org.jetbrains.annotations.Nullable;
 //? if >= 26.3 {
 import net.minecraft.client.input.MouseButtonEvent;
-//?} else {
+//?} else if < 26.2 {
+/*import net.minecraft.client.input.MouseButtonEvent;
+import org.lwjgl.glfw.GLFW;
+*///?} else {
 /*import org.lwjgl.glfw.GLFW;
 *///?}
 import org.spongepowered.asm.mixin.Mixin;
@@ -26,7 +29,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ChatScreen.class)
 public abstract class ChatScreenMixin extends Screen {
+//? if >= 26.2 {
     @Shadow @Nullable protected abstract Style getComponentStyleAt(double d, double e);
+//?}
     @Unique
     QuickMenuWidget quickMenuWidget = null;
 
@@ -34,6 +39,18 @@ public abstract class ChatScreenMixin extends Screen {
         super(title);
     }
 
+//? if < 26.2 {
+    /*@Redirect(method = "keyPressed", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;setScreen(Lnet/minecraft/client/gui/screens/Screen;)V"))
+    private void keyPressed(Minecraft client, Screen screen) {
+        if (screen == null) {
+            if (client.screen == reden$getThis()) {
+                client.setScreen(null);
+            }
+        } else {
+            client.setScreen(screen);
+        }
+    }
+*///?} else {
     @Redirect(method = "keyPressed", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/Gui;setScreen(Lnet/minecraft/client/gui/screens/Screen;)V"))
     private void keyPressed(Minecraft client, Screen screen) {
         if (screen == null) {
@@ -86,6 +103,8 @@ public abstract class ChatScreenMixin extends Screen {
         }
     }
 
+//?}
+
 //? if >= 26.3 {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void mouseClicked(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
@@ -98,7 +117,18 @@ public abstract class ChatScreenMixin extends Screen {
             cir.setReturnValue(true);
         }
     }
-//?} else {
+//?} else if < 26.2 {
+    /*@Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    private void mouseClicked(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        if (quickMenuWidget != null && quickMenuWidget.mouseClicked(event.x(), event.y(), event.button())) {
+            cir.setReturnValue(true);
+            return;
+        }
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_2 && MalilibSettingsKt.CHAT_RIGHT_CLICK_MENU.getBooleanValue()) {
+            cir.setReturnValue(true);
+        }
+    }
+*///?} else {
 /*    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void mouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir) {
         if (quickMenuWidget != null && quickMenuWidget.mouseClicked(mouseX, mouseY, button)) {

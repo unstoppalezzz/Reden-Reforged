@@ -113,7 +113,7 @@ open class WebTextureComponent(
         v2: Float
     ) {
         //? if <= 1.21.1 {
-        /*RenderSystem.shaderTextures[0] = texture.id
+        /*RenderSystem.setShaderTexture(0, texture.id)
         RenderSystem.setShader { net.minecraft.client.renderer.GameRenderer.getPositionTexShader() }
         *///?} elif <= 1.21.4 {
         /*RenderSystem.setShader(net.minecraft.client.renderer.CoreShaders.POSITION_TEX)
@@ -131,14 +131,13 @@ open class WebTextureComponent(
         bufferBuilder.addVertex(matrix4f, x2.toFloat(), y2.toFloat(), z.toFloat()).setUv(u2, v2)
         bufferBuilder.addVertex(matrix4f, x2.toFloat(), y1.toFloat(), z.toFloat()).setUv(u2, v1)
         *///?} else {
-        // Use manual vertex buffering to avoid reliance on GuiGraphics.submitBlit signature
-        val matrix4f = context.pose().last().pose()
-        val bufferBuilder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
-        bufferBuilder.addVertex(matrix4f, x1.toFloat(), y1.toFloat(), z.toFloat()).setUv(u1, v1)
-        bufferBuilder.addVertex(matrix4f, x1.toFloat(), y2.toFloat(), z.toFloat()).setUv(u1, v2)
-        bufferBuilder.addVertex(matrix4f, x2.toFloat(), y2.toFloat(), z.toFloat()).setUv(u2, v2)
-        bufferBuilder.addVertex(matrix4f, x2.toFloat(), y1.toFloat(), z.toFloat()).setUv(u2, v1)
-        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(bufferBuilder.buildOrThrow())
+        context.submitBlit(
+            net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+            texture.textureView,
+            x1, y1, x2, y2,
+            u1, u2, v1, v2,
+            -1
+        )
         //?}
 
         //? if < 1.21.5

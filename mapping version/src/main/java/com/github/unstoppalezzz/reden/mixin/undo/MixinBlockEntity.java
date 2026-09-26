@@ -9,8 +9,10 @@ import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+//? if >= 1.21.6 {
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.storage.TagValueOutput;
+//?}
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -51,9 +53,13 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 lastComponents = components;
                 DebugKt.debugLogger.invoke("saved lastComponents at " + worldPosition.toShortString() + ", cause=reden manually, " + lastComponents);
             } else if (level != null) {
+//? if >= 1.21.6 {
                 TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
                 this.saveWithId(vo);
                 lastSavedNbt = vo.buildResult();
+//?} else {
+                /*lastSavedNbt = this.saveWithId(level.registryAccess());
+*///?}
                 DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
             }
             lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
@@ -100,9 +106,13 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 lastComponents = components;
                 DebugKt.debugLogger.invoke("init: saved lastComponents at " + worldPosition.toShortString() + ", cause=reden init, " + lastComponents);
             } else if (level != null) {
+//? if >= 1.21.6 {
                 TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
                 this.saveWithId(vo);
                 lastSavedNbt = vo.buildResult();
+//?} else {
+                /*lastSavedNbt = this.saveWithId(level.registryAccess());
+*///?}
                 DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
             }
         } else {

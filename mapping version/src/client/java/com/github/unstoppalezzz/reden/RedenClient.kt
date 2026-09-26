@@ -4,6 +4,7 @@ import com.github.unstoppalezzz.reden.malilib.GuiConfigs
 import com.github.unstoppalezzz.reden.malilib.HOTKEYS
 import com.github.unstoppalezzz.reden.malilib.configureKeyCallbacks
 import com.github.unstoppalezzz.reden.malilib.getAllOptions
+import com.github.unstoppalezzz.reden.network.Undo
 import com.github.unstoppalezzz.reden.network.registerClientPackets
 import com.github.unstoppalezzz.reden.utils.checkMalilib
 import com.github.unstoppalezzz.reden.utils.isDebug
@@ -56,6 +57,11 @@ fun saveMalilibOptions() {
 class RedenClient : ClientModInitializer {
     override fun onInitializeClient() {
         checkMalilib()
+        try {
+            Undo.register()
+        } catch (t: Throwable) {
+            Reden.LOGGER.error("Failed to register Undo payload on client", t)
+        }
         registerClientPackets()
         fi.dy.masa.malilib.registry.Registry.CONFIG_SCREEN.registerConfigScreenFactory(
             fi.dy.masa.malilib.util.data.ModInfo(

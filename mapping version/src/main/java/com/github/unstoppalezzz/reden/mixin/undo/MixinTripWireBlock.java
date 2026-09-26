@@ -7,7 +7,9 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+//? if >= 1.21.5 {
 import net.minecraft.world.entity.InsideBlockEffectApplier;
+//?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.TripWireBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -47,7 +49,13 @@ public class MixinTripWireBlock {
     }
 
     @Inject(method = "entityInside", at = @At("HEAD"), cancellable = true)
+//? if >= 1.21.10 {
     private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean bl, CallbackInfo ci) {
+//?} else if >= 1.21.5 {
+    /*private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, CallbackInfo ci) {
+*///?} else {
+    /*private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, CallbackInfo ci) {
+*///?}
         if (level.isClientSide()) return;
         int now = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
         if (UndoMixinHelper.isFrozen(pos, now)) {
@@ -70,7 +78,13 @@ public class MixinTripWireBlock {
     }
 
     @Inject(method = "entityInside", at = @At("RETURN"))
+//? if >= 1.21.10 {
     private void afterEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean bl, CallbackInfo ci) {
+//?} else if >= 1.21.5 {
+    /*private void afterEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, CallbackInfo ci) {
+*///?} else {
+    /*private void afterEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, CallbackInfo ci) {
+*///?}
         if (level.isClientSide()) return;
         if (!reden$pushed.isEmpty() && reden$pushed.pop()) {
             UndoMixinHelper.popRecord(() -> reden$reason(pos));

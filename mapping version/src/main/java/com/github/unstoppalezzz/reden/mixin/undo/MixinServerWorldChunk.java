@@ -4,7 +4,11 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
+//? if >= 1.21.9 {
 import net.minecraft.world.level.chunk.PalettedContainerFactory;
+//?} else {
+/*import net.minecraft.core.Registry;
+*///?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.Biome;
@@ -26,9 +30,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MixinServerWorldChunk extends ChunkAccess {
     @Shadow @Final Level level;
 
+//? if >= 1.21.9 {
     public MixinServerWorldChunk(ChunkPos chunkPos, UpgradeData upgradeData, LevelHeightAccessor levelHeightAccessor, PalettedContainerFactory palettedContainerFactory, long l, @Nullable LevelChunkSection[] levelChunkSections, @Nullable BlendingData blendingData) {
         super(chunkPos, upgradeData, levelHeightAccessor, palettedContainerFactory, l, levelChunkSections, blendingData);
     }
+//?} else {
+    /*public MixinServerWorldChunk(ChunkPos chunkPos, UpgradeData upgradeData, LevelHeightAccessor levelHeightAccessor, Registry<Biome> registry, long l, @Nullable LevelChunkSection[] levelChunkSections, @Nullable BlendingData blendingData) {
+        super(chunkPos, upgradeData, levelHeightAccessor, registry, l, levelChunkSections, blendingData);
+    }
+*///?}
 
     @Inject(
             method = "setBlockState",

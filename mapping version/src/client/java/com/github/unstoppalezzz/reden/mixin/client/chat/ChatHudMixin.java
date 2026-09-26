@@ -84,6 +84,7 @@ public class ChatHudMixin {
         list.add(index, element);
     }
 
+//? if >= 1.21.9 {
     @Redirect(
         method = "addMessage",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/ChatComponent;openChatScreen(Lnet/minecraft/client/gui/components/ChatComponent$ChatMethod;)V")
@@ -115,4 +116,5 @@ public class ChatHudMixin {
             }
         } catch (Throwable ignored) {}
     }
+//?}
 }

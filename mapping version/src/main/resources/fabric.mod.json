@@ -19,7 +19,7 @@
       "com.github.unstoppalezzz.reden.Reden"
     ]
     ,"client": [
-      "com.github.unstoppalezzz.reden.RedenClientMinimal"
+      "${cliententry}"
     ]
   },
   "accessWidener": "reden.accesswidener",
