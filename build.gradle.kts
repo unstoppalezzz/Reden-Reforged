@@ -1,11 +1,22 @@
+import net.fabricmc.loom.api.LoomGradleExtensionAPI
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     `maven-publish`
-    id("net.fabricmc.fabric-loom")
     kotlin("jvm")
     kotlin("plugin.serialization")
     //id("dev.kikugie.j52j")
     id("me.modmuss50.mod-publish-plugin")
 }
+
+val mcVersion = stonecutter.current.version
+
+val obfuscated = stonecutter.eval(mcVersion, "<26.1")
+apply(plugin = if (obfuscated) "net.fabricmc.fabric-loom-remap" else "net.fabricmc.fabric-loom")
+val loom = extensions.getByType<LoomGradleExtensionAPI>()
 
 class ModData {
     val id = property("mod.id").toString()
@@ -15,22 +26,16 @@ class ModData {
 }
 
 val mod = ModData()
-val mcVersion = stonecutter.current.version
 val mcDep = property("mod.mc_dep").toString()
 
 version = "${mod.version}+$mcVersion"
 group = mod.group
 base { archivesName.set(mod.id) }
 
-loom {
-    splitEnvironmentSourceSets()
-
-    mods {
-        create("template") {
-            sourceSet(sourceSets["main"])
-            sourceSet(sourceSets["client"])
-        }
-    }
+loom.splitEnvironmentSourceSets()
+loom.mods.create("template") {
+    sourceSet(sourceSets["main"])
+    sourceSet(sourceSets["client"])
 }
 
 tasks.compileKotlin {
@@ -57,63 +62,52 @@ repositories {
 }
 
 dependencies {
-    fun fapi(vararg modules: String) = modules.forEach {
-        implementation(fabricApi.module(it, property("deps.fabric_api") as String))
+    val modImpl = if (obfuscated) "modImplementation" else "implementation"
+
+    "minecraft"("com.mojang:minecraft:$mcVersion")
+    if (obfuscated) {
+        "mappings"(loom.officialMojangMappings())
     }
 
-    minecraft("com.mojang:minecraft:$mcVersion")
-
     if (stonecutter.eval(mcVersion, "=1.21.1")) {
-        implementation("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}") {
+        modImpl("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}") {
             exclude(group = "net.fabricmc.fabric-api")
         }
     }
 
-    implementation("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
-    implementation("net.fabricmc:fabric-language-kotlin:${property("deps.fabric_language_kotlin")}")
-    implementation("io.wispforest:owo-lib:${property("deps.owo")}") {
+    modImpl("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
+    modImpl("net.fabricmc:fabric-language-kotlin:${property("deps.fabric_language_kotlin")}")
+    modImpl("io.wispforest:owo-lib:${property("deps.owo")}") {
         exclude(group = "net.fabricmc.fabric-api")
         exclude(group = "it.unimi.dsi")
     }
-    implementation("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}")
+    modImpl("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}")
 
-    implementation("maven.modrinth:malilib:${property("deps.malilib")}")
-    implementation("maven.modrinth:litematica:${property("deps.litematica")}")
-
-    // Add Fabric mapping-io for name mapping functionality
-    // implementation("net.fabricmc:mapping-io:0.5.0")
-
-    // Also add tiny-mappings-parser for better compatibility
-    // implementation("net.fabricmc:tiny-mappings-parser:0.3.0+build.17")
-
-//    fapi(
-//        // Add modules from https://github.com/FabricMC/fabric
-//        "fabric-lifecycle-events-v1",
-//        "fabric-networking-api-v1",
-//        "fabric-resource-loader-v0",
-//        "fabric-registry-sync-v0",
-//        "fabric-content-registries-v0",
-//        "fabric-loot-api-v2",
-//        "fabric-command-api-v2",
-//        "fabric-screen-api-v1",
-//        "fabric-screen-handler-api-v1",
-//    )
+    modImpl("maven.modrinth:malilib:${property("deps.malilib")}")
+    modImpl("maven.modrinth:litematica:${property("deps.litematica")}")
 }
 
-loom {
-    decompilers {
-        get("vineflower").apply { 
-            options.put("mark-corresponding-synthetics", "1")
-        }
-    }
+loom.decompilers {
+    getByName("vineflower").options.put("mark-corresponding-synthetics", "1")
+}
 
-    runConfigs.all {
-        ideConfigGenerated(true)
-        vmArgs("-Dmixin.debug.export=true")
-        runDir = "../../run"
-    }
+loom.runConfigs.all {
+    ideConfigGenerated(true)
+    vmArgs("-Dmixin.debug.export=true")
+    runDir = "../../run"
+}
 
-    accessWidenerPath.set(project.file("src/main/resources/reden.accesswidener"))
+loom.accessWidenerPath.set(project.file("src/main/resources/reden.accesswidener"))
+
+if (stonecutter.eval(mcVersion, ">=1.21.9 <26.1")) {
+    val chatMenuFiles = setOf("QuickMenuWidget", "ChatMixinHelper", "ChatHudMixin", "ChatScreenMixin")
+    val isChatMenuFile = { f: java.io.File -> f.nameWithoutExtension in chatMenuFiles }
+    tasks.named<JavaCompile>("compileClientJava") {
+        exclude { !it.isDirectory && isChatMenuFile(it.file) }
+    }
+    tasks.named<KotlinCompile>("compileClientKotlin") {
+        exclude { !it.isDirectory && isChatMenuFile(it.file) }
+    }
 }
 
 val java = if (stonecutter.eval(mcVersion, ">=26.1")) 25 else if (stonecutter.eval(mcVersion, ">=1.20.6")) 21 else 17
@@ -126,8 +120,16 @@ kotlin.jvmToolchain(java)
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+        jvmTarget.set(JvmTarget.fromTarget(java.toString()))
+        if (obfuscated) {
+            apiVersion.set(KotlinVersion.KOTLIN_2_1)
+            jvmDefault.set(JvmDefaultMode.DISABLE)
+        }
     }
+}
+if (obfuscated) {
+    tasks.compileKotlin { compilerOptions.moduleName.set("reden") }
+    tasks.named<KotlinCompile>("compileClientKotlin") { compilerOptions.moduleName.set("reden_client") }
 }
 
 tasks.processResources {
@@ -137,53 +139,65 @@ tasks.processResources {
     inputs.property("name", mod.name)
     inputs.property("version", mod.version)
     inputs.property("mcdep", mcDep)
+    inputs.property("mcVersion", mcVersion)
+    inputs.property("malilib", project.property("deps.malilib").toString())
 
     val map = mapOf(
         "id" to mod.id,
         "name" to mod.name,
         "version" to mod.version,
         "mcdep" to mcDep,
-        "malilib" to project.property("deps.malilib") as String
+        "malilib" to project.property("deps.malilib") as String,
+        "cliententry" to "com.github.unstoppalezzz.reden." +
+                "RedenClient",
+        "clientmixins" to if (obfuscated) "" else """,
+    {
+      "config": "reden.client.mixins.json",
+      "environment": "client"
+    }""",
     )
 
     filesMatching("fabric.mod.json") { expand(map) }
-    
+
+    if (obfuscated) {
+        filesMatching("fabric.mod.json") {
+            filter { line -> if (line.contains("\"homepage\"")) null else line }
+        }
+    }
 }
 
 tasks.withType<Jar>().configureEach {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-tasks.compileKotlin {
-//    outputs.upToDateWhen { false }
-}
+val releaseJar = tasks.named<AbstractArchiveTask>(if (obfuscated) "remapJar" else "jar")
 
 tasks.register<Copy>("buildAndCollect") {
     group = "build"
-    from(tasks.jar.get().archiveFile)
+    from(releaseJar.flatMap { it.archiveFile })
     into(rootProject.layout.buildDirectory.file("libs/${mod.version}"))
     dependsOn("build")
 }
-tasks.register<com.github.unstoppalezzz.reden.build.MapMojangToIntermediaryTask>("mapMojangToIntermediary") {
-    inputFile.set(rootProject.file("src/methods.txt"))
-    outputFile.set(project.file("build/mapped-methods.txt"))
-    minecraftVersion.set(stonecutter.current.version)
 
-    outputs.upToDateWhen {
-        false
+if (!obfuscated) {
+    tasks.register<com.github.unstoppalezzz.reden.build.MapMojangToIntermediaryTask>("mapMojangToIntermediary") {
+        inputFile.set(rootProject.file("src/methods.txt"))
+        outputFile.set(project.file("build/mapped-methods.txt"))
+        minecraftVersion.set(stonecutter.current.version)
+
+        outputs.upToDateWhen {
+            false
+        }
     }
 }
 
 publishMods {
-    file = tasks.jar.get().archiveFile
+    file = releaseJar.flatMap { it.archiveFile }
     displayName = "${mod.name} ${mod.version} for $mcVersion"
     version = "${mod.version}+$mcVersion"
     changelog = rootProject.file("CHANGELOG.md").readText()
     type = STABLE
     modLoaders.add("fabric")
-
-//    dryRun = providers.environmentVariable("MODRINTH_TOKEN")
-//        .getOrNull() == null || providers.environmentVariable("CURSEFORGE_TOKEN").getOrNull() == null
 
     modrinth {
         projectId = property("publish.modrinth").toString()

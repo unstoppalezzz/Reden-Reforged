@@ -2,12 +2,17 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.access.BlockEntityInterface;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
+//? if >= 1.21.6 {
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.level.storage.TagValueOutput;
+//?}
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -40,12 +45,15 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     @Override
     public void saveLastNbt$reden() {
         if (level != null && !level.isClientSide()) {
+            DebugKt.debugLogger.invoke("before saving lastNBT at " + worldPosition.toShortString() + ", nbt=" + lastSavedNbt + ", components=" + components);
             if (lastSaveTime == com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount()) {
                 return;
             }
             if (isComponentsValid(components)) {
                 lastComponents = components;
-            } else {
+                DebugKt.debugLogger.invoke("saved lastComponents at " + worldPosition.toShortString() + ", cause=reden manually, " + lastComponents);
+            } else if (level != null) {
+//? if >= 26.1 {
                 try {
                     var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
                             net.minecraft.util.ProblemReporter.DISCARDING,
@@ -55,6 +63,14 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                     lastSavedNbt = vo.buildResult();
                 } catch (Throwable t) {
                 }
+//?} else if >= 1.21.6 {
+                /*TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+                this.saveWithId(vo);
+                lastSavedNbt = vo.buildResult();
+*///?} else {
+                /*lastSavedNbt = this.saveWithId(level.registryAccess());
+*///?}
+                DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
             }
             lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
         }
@@ -68,10 +84,13 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     @Override
     public @Nullable Object getLastSavedNbt$reden() {
         if (isComponentsValid(lastComponents)) {
+            DebugKt.debugLogger.invoke("getLastSavedNbt at " + worldPosition.toShortString() + ", using lastComponents=" + lastComponents);
             return lastComponents;
         } else if (lastSavedNbt != null) {
+            DebugKt.debugLogger.invoke("getLastSavedNbt at " + worldPosition.toShortString() + ", using lastSavedNbt=" + lastSavedNbt);
             return lastSavedNbt;
         } else {
+            DebugKt.debugLogger.invoke("getLastSavedNbt at " + worldPosition.toShortString() + ", no saved data");
             return null;
         }
     }
@@ -91,10 +110,13 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
             at = @At("TAIL")
     )
     private void onReadNbt(CallbackInfo ci) {
-        if (lastSavedNbt == null && lastComponents == null) {
+        DebugKt.debugLogger.invoke("init: before saving lastNBT at " + worldPosition.toShortString() + ", data=" + lastSavedNbt);
+            if (lastSavedNbt == null && lastComponents == null) {
             if (isComponentsValid(components)) {
                 lastComponents = components;
+                DebugKt.debugLogger.invoke("init: saved lastComponents at " + worldPosition.toShortString() + ", cause=reden init, " + lastComponents);
             } else if (level != null) {
+//? if >= 26.1 {
                 try {
                     var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
                             net.minecraft.util.ProblemReporter.DISCARDING,
@@ -104,7 +126,17 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                     lastSavedNbt = vo.buildResult();
                 } catch (Throwable t) {
                 }
+//?} else if >= 1.21.6 {
+                /*TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+                this.saveWithId(vo);
+                lastSavedNbt = vo.buildResult();
+*///?} else {
+                /*lastSavedNbt = this.saveWithId(level.registryAccess());
+*///?}
+                DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
             }
+        } else {
+            DebugKt.debugLogger.invoke("init: skip saving lastNBT at " + worldPosition.toShortString());
         }
     }
 }

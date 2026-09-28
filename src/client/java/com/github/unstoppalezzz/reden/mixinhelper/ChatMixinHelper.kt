@@ -4,7 +4,11 @@ import com.github.unstoppalezzz.reden.access.VisibleChatHudLineAccess
 import com.github.unstoppalezzz.reden.gui.QuickMenuWidget
 import com.github.unstoppalezzz.reden.utils.codec.TextSerializer
 import com.github.unstoppalezzz.reden.utils.multiver.Text
+//? if >=26.1 {
 import net.minecraft.client.multiplayer.chat.GuiMessage
+//?} else {
+/*import net.minecraft.client.GuiMessage
+*///?}
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.ClickEvent
 import net.minecraft.network.chat.HoverEvent

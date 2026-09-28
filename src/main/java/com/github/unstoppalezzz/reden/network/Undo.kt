@@ -7,6 +7,7 @@ import com.github.unstoppalezzz.reden.access.PlayerData
 import com.github.unstoppalezzz.reden.access.PlayerData.Companion.data
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.modified
+import com.github.unstoppalezzz.reden.utils.debugLogger
 import com.github.unstoppalezzz.reden.utils.multiver.*
 import com.github.unstoppalezzz.reden.utils.server
 import com.github.unstoppalezzz.reden.utils.setBlockNoPP
@@ -88,10 +89,21 @@ class Undo(
             }
         }
 
+        private fun rescheduleRestoredTripwires(world: ServerLevel, restoredPositions: List<BlockPos>) {
+            restoredPositions.forEach { pos ->
+                val state = world.getBlockState(pos)
+                if (state.block is net.minecraft.world.level.block.TripWireBlock) {
+                    world.scheduleTick(pos, state.block, TRIPWIRE_RECHECK_DELAY)
+                }
+            }
+        }
+
+        private const val TRIPWIRE_RECHECK_DELAY = 10
+
         private fun destroyPrimedTntAt(world: ServerLevel, pos: BlockPos) {
             val center = net.minecraft.world.phys.Vec3.atCenterOf(pos)
             val tntEntities = world.getEntitiesOfClass(
-                PrimedTnt::class.java,
+                net.minecraft.world.entity.item.PrimedTnt::class.java,
                 net.minecraft.world.phys.AABB.ofSize(center, 1.5, 1.5, 1.5)
             ) { entity -> entity.blockPosition() == pos || entity.position().distanceToSqr(center) < 1.0 }
 
@@ -117,12 +129,22 @@ class Undo(
                     val tag = entry.beData as? CompoundTag
                     val carried = tag?.get("blockState")
                         ?.let { net.minecraft.world.level.block.state.BlockState.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, it).result().orElse(null) }
-                    if (tag == null || carried == null || tag.getBooleanOr("source", false)) {
+                    //? if >= 1.21.5 {
+                    val isSource = tag?.getBooleanOr("source", false) ?: false
+                    //?} else {
+                    /*val isSource = tag?.getBoolean("source") ?: false
+                    *///?}
+                    if (tag == null || carried == null || isSource) {
                         skippedMoving += pos
                         return@forEach
                     }
+                    //? if >= 1.21.5 {
                     val facing = net.minecraft.core.Direction.from3DDataValue(tag.getIntOr("facing", 0))
                     val moveDir = if (tag.getBooleanOr("extending", true)) facing else facing.opposite
+                    //?} else {
+                    /*val facing = net.minecraft.core.Direction.from3DDataValue(tag.getInt("facing"))
+                    val moveDir = if (!tag.contains("extending") || tag.getBoolean("extending")) facing else facing.opposite
+                    *///?}
                     movingRestores += Triple(pos, pos.relative(moveDir.opposite), carried)
                     return@forEach
                 }
@@ -189,6 +211,7 @@ class Undo(
                 }
             }
 
+            //? if >=26.1 {
             movingRestores.forEach { (dest, _, _) ->
                 world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
@@ -205,6 +228,7 @@ class Undo(
             UndoMixinHelper.freezePositions(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
+            rescheduleRestoredTripwires(world, restoredPositions)
 
             restoredPositions
                 .filter { pos ->
@@ -213,8 +237,8 @@ class Undo(
                         state.block == net.minecraft.world.level.block.Blocks.HOPPER
                 }
                 .forEach { pos -> refreshComparatorOutput(world, pos) }
+            //?}
 
-        
             val rideRelations = mutableListOf<Triple<net.minecraft.world.entity.Entity, net.minecraft.world.entity.Entity?, List<net.minecraft.world.entity.Entity>>>()
             record.entities.forEach {
                 val entity = world.getEntity(it.key)
@@ -227,6 +251,7 @@ class Undo(
                     if (it.value != PlayerData.NotExistEntityEntry) {
                         val entry = it.value
                         if (entry.nbt.size() == 0) return@forEach
+                        debugLogger("undo entity ${it.key} spawning")
                         val newEntity = entry.entity!!.spawn(world, { newEntity ->
                             newEntity.uuid = it.key
                         },
@@ -237,7 +262,7 @@ class Undo(
 //?}
                         if (newEntity != null) {
                             newEntity.load(entry.nbt)
-                            redoRecord?.entities?.put(it.key, PlayerData.NotExistEntityEntry)
+                            redoRecord?.entities?.put(it.key, PlayerData.NotExistEntityEntry) // add entity info to redo record
                         }
                     }
                 } else {
@@ -249,10 +274,13 @@ class Undo(
                         )
                     )
                     if (it.value == PlayerData.NotExistEntityEntry) {
+                        debugLogger("undo entity ${it.key} removing")
                         entity.discard()
                     } else if (it.value.nbt.size() == 0) {
+                        debugLogger("undo entity ${it.key} has empty nbt, skipping")
                     } else {
                         val entry = it.value
+                        debugLogger("undo entity ${it.key} reading nbt")
                         if (entity is Mob) {
                             entity.removeFreeWill()
                         }
@@ -264,14 +292,50 @@ class Undo(
             rideRelations.forEach { (entity, vehicleBefore, passengersBefore) ->
                 if (entity.isRemoved) return@forEach
                 if (vehicleBefore != null && !vehicleBefore.isRemoved && entity.vehicle != vehicleBefore) {
+//? if >= 1.21.9 {
                     entity.startRiding(vehicleBefore, true, false)
+//?} else {
+                    /*entity.startRiding(vehicleBefore, true)
+*///?}
                 }
                 passengersBefore.forEach { passenger ->
                     if (!passenger.isRemoved && passenger.vehicle != entity) {
+//? if >= 1.21.9 {
                         passenger.startRiding(entity, true, false)
+//?} else {
+                        /*passenger.startRiding(entity, true)
+*///?}
                     }
                 }
             }
+
+            //? if <26.1 {
+            /*movingRestores.forEach { (dest, _, _) ->
+                world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)
+                world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
+                restoredPositions += dest
+            }
+            movingRestores.forEach { (dest, origin, carried) ->
+                world.modified(origin, com.github.unstoppalezzz.reden.utils.server.tickCount)
+                world.setBlockNoPP(origin, carried)
+                restoredPositions += origin
+            }
+
+        
+            val now = com.github.unstoppalezzz.reden.utils.server.tickCount
+            UndoMixinHelper.freezePositions(
+                restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
+            )
+            rescheduleRestoredTripwires(world, restoredPositions)
+
+            restoredPositions
+                .filter { pos ->
+                    val state = world.getBlockState(pos)
+                    state.block == net.minecraft.world.level.block.Blocks.COMPARATOR ||
+                        state.block == net.minecraft.world.level.block.Blocks.HOPPER
+                }
+                .forEach { pos -> refreshComparatorOutput(world, pos) }
+            *///?}
         }
         private fun <T: PlayerData.UndoRedoRecord> MutableList<T>.lastValid(): T? {
             while (this.isNotEmpty()) {
@@ -285,17 +349,40 @@ class Undo(
             return null
         }
         fun register() {
+            //? if >=26.1 {
             PayloadTypeRegistry.serverboundPlay().register(ID, CODEC)
             PayloadTypeRegistry.clientboundPlay().register(ID, CODEC)
+            //?} else {
+            /*PayloadTypeRegistry.playC2S().register(ID, CODEC)
+            // the client side receiver (registerClientPackets) needs the clientbound type as well
+            PayloadTypeRegistry.playS2C().register(ID, CODEC)
+            *///?}
             ServerPlayNetworking.registerGlobalReceiver(ID) { packet, context ->
                 val view = context.player().data()
+                //? if >=26.1 {
                 fun sendStatus(status: Int) = context.responseSender().sendPacket(Undo(status))
+                //?} else {
+                /*fun sendStatus(status: Int) {
+                    val msg = when (status) {
+                        0 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.rollback_success"))
+                        1 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.restore_success"))
+                        2 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_blocks_info"))
+                        16 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_permission"))
+                        32 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.not_recording"))
+                        64 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.busy"))
+                        65536 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.unknown_error"))
+                        else -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.unknown_status"))
+                    }
+                    context.player().sendSystemMessage(msg)
+                }
+                *///?}
                 if (!view.canRecord) {
                     sendStatus(16)
                     return@registerGlobalReceiver
                 }
                 UndoMixinHelper.playerStopRecording(context.player())
                 if (UndoMixinHelper.recording != null) {
+                    Reden.LOGGER.error("Undo when a record is still active, id=" + UndoMixinHelper.recording?.id)
                     // 不取消跟踪会导致undo的更改也被记录，边读边写异常
                     UndoMixinHelper.undoRecords.clear()
                 }

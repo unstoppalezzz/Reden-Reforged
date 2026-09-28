@@ -17,7 +17,11 @@ public class MixinMovingPiston {
     @Overwrite
     @Nullable
     public BlockEntityTicker<PistonMovingBlockEntity> getTicker(Level level, BlockState blockState, BlockEntityType<PistonMovingBlockEntity> type) {
+        //? if >=26.1 {
         return (world1, pos, state1, be) -> {
+        //?} else {
+        /*return (type == BlockEntityType.PISTON) ? (world1, pos, state1, be) -> {
+        *///?}
             boolean shouldTrack = be.getProgress(1) >= 1.0f // current progress, delta=1
                     && !world1.isClientSide(); // server side
             if (shouldTrack) {
@@ -31,6 +35,10 @@ public class MixinMovingPiston {
                     UndoMixinHelper.popRecord(() -> "piston block entity tick/" + pos.toShortString());
                 }
             }
+        //? if >=26.1 {
         };
+        //?} else {
+        /*} : null;
+        *///?}
     }
 }

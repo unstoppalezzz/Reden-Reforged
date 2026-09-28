@@ -1,14 +1,32 @@
 package com.github.unstoppalezzz.reden.gui;
 
 import net.minecraft.client.Minecraft;
+//? if <26.1 {
+/*import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Renderable;
+*///?}
 import net.minecraft.client.gui.components.events.GuiEventListener;
+//? if <26.1 {
+/*import net.minecraft.client.gui.narration.NarratableEntry;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
+*///?}
 import net.minecraft.client.gui.screens.Screen;
+//? if <26.1 {
+/*import net.minecraft.client.renderer.RenderType;
+*///?}
 import net.minecraft.network.chat.Component;
+//? if <26.1 {
+/*import org.jetbrains.annotations.NotNull;
+*///?}
 
 import java.util.ArrayList;
 import java.util.List;
 
+//? if <26.1 {
+/*public abstract class QuickMenuWidget implements NarratableEntry, Renderable, GuiEventListener {
+*///?} else {
 public abstract class QuickMenuWidget implements GuiEventListener {
+//?}
     private final Screen parent;
     private final List<MenuEntry> entries = new ArrayList<>();
     private final Minecraft client = Minecraft.getInstance();
@@ -62,6 +80,50 @@ public abstract class QuickMenuWidget implements GuiEventListener {
 
     public abstract void remove();
 
+    //? if <26.1 {
+    /*@Override
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+        if (entries.isEmpty()) {
+            remove();
+            return;
+        }
+        int height = entries.size() * 14;
+        width = Integer.max(entries.stream()
+            .map(x -> client.font.width(x.name))
+            .max(Integer::compareTo)
+            .get(), 80);
+        if (x + width > parent.width) {
+            x = parent.width - width;
+        }
+        if (y + height > parent.height) {
+            y = parent.height - height;
+        }
+        //? if <= 1.21.5 {
+        /^context.pose().pushPose();
+        context.pose().translate(0.0F, 0.0F, 100);
+        context.fillGradient(RenderType.guiOverlay(), x, y, x + width, y + height, 0x80000000, 0x80000000, 0);
+        ^///?} else {
+        context.pose().pushMatrix();
+        context.pose().translate(0.0F, 0.0F, context.pose());
+        context.fillGradient(x, y, x + width, y + height, 0x80000000, 0x80000000);
+        //?}
+        for (int i = 0; i < entries.size(); i++) {
+            MenuEntry entry = entries.get(i);
+            int color = 0xFFFFFFFF;
+            if (mouseX >= x && mouseX <= x + width && mouseY >= y + i * 14 && mouseY <= y + i * 14 + 14) {
+                color = 0xFFFFFF00;
+            }
+            context.drawCenteredString(client.font, entry.name, x + width / 2, y + i * 14 + 2, color);
+        }
+        //? if <= 1.21.5 {
+        /^context.pose().popPose();
+        ^///?} else {
+        context.pose().popMatrix();
+        //?}
+    }
+
+    @Override
+    *///?}
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (entries.isEmpty()) {
             return false;
@@ -79,17 +141,32 @@ public abstract class QuickMenuWidget implements GuiEventListener {
         return false;
     }
 
+    //? if <26.1
+    /*@Override*/
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         remove();
         return false;
     }
 
+    //? if <26.1
+    /*@Override*/
     public void setFocused(boolean focused) {
 
     }
 
+    //? if <26.1
+    /*@Override*/
     public boolean isFocused() {
         return false;
     }
 
+    //? if <26.1 {
+    /*@Override
+    public @NotNull NarrationPriority narrationPriority() {
+        return NarrationPriority.NONE;
+    }
+
+    @Override
+    public void updateNarration(NarrationElementOutput narrationElementOutput) { }
+    *///?}
 }

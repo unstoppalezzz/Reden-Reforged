@@ -42,7 +42,11 @@ Special thanks to the original developers and contributors for creating the foun
 
 ## Build
 
-If you want to build for pre-Minecraft 26 versions, you need to use the mapping version that is in the root
+Run one of the two command to build the project
 
 ```bash
+# every version
 ./gradlew build
+# a single version (replace 1.21.11 with the version you want to build)
+./gradlew :1.21.11:build
+```

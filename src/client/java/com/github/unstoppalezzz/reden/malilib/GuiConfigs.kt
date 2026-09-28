@@ -36,8 +36,12 @@ class GuiConfigs(parent: Screen? = null): GuiConfigsBase(
     override fun useKeybindSearch() = true
 
     override fun onClose() {
+        //? if >=26.1 {
         val parentScreen = parent ?: return
         mc.setScreenAndShow(parentScreen)
+        //?} else {
+        /*mc.setScreen(parent)
+        *///?}
     }
 
     enum class ConfigGuiTab(private val translationKey: String) {

@@ -20,7 +20,7 @@ object NbtSerializer : KSerializer<CompoundTag> {
     override fun deserialize(decoder: Decoder): CompoundTag = NbtIo.read(
         DataInputStream(ByteArrayInputStream(decoder.decodeSerializableValue(ByteArraySerializer()))),
         NbtAccounter.create(1024 * 1024) // 1 MB
-    )
+    ) as CompoundTag
 
     override fun serialize(encoder: Encoder, value: CompoundTag) {
         val stream = ByteArrayOutputStream()

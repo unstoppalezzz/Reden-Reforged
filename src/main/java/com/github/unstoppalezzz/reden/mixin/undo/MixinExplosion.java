@@ -2,6 +2,7 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.server.level.ServerLevel;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -32,6 +33,7 @@ public class MixinExplosion implements UndoableAccess {
         if (level.isClientSide) return;
         long id = UndoMixinHelper.inheritedRecordId();
         if (id != 0) {
+            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ id);
             undoId = id;
         }
     }
@@ -69,17 +71,26 @@ public class MixinExplosion implements UndoableAccess {
     private void onInit(CallbackInfo ci) {
         long id = UndoMixinHelper.inheritedRecordId();
         if (id != 0) {
+            DebugKt.debugLogger.invoke("Explosion happened, adding it into record "+ id);
             undoId = id;
         }
     }
 
     @Inject(method = "explode", at = @At("HEAD"))
-    private void beforeDamageEntities(CallbackInfoReturnable<Integer> cir) {
+    //? if >= 1.21.9 {
+    private void beforeDamageEntities(CallbackInfoReturnable<?> ci) {
+    //?} else {
+    /*private void beforeDamageEntities(CallbackInfo ci) {
+    *///?}
         UndoMixinHelper.pushRecord(undoId, () -> "explosion");
     }
 
     @Inject(method = "explode", at = @At("RETURN"))
-    private void afterDamageEntities(CallbackInfoReturnable<Integer> cir) {
+    //? if >= 1.21.9 {
+    private void afterDamageEntities(CallbackInfoReturnable<?> ci) {
+    //?} else {
+    /*private void afterDamageEntities(CallbackInfo ci) {
+    *///?}
         UndoMixinHelper.popRecord(() -> "explosion");
     }
     //?}

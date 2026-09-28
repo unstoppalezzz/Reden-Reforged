@@ -3,16 +3,28 @@ package com.github.unstoppalezzz.reden;
 import com.github.unstoppalezzz.reden.utils.UtilsKt;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+//? if >= 1.21.11 {
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 import org.slf4j.Logger;
+//? if >=26.1 {
 import org.slf4j.helpers.NOPLogger;
+//?} else {
+/*import org.slf4j.LoggerFactory;
+*///?}
 import com.github.unstoppalezzz.reden.network.ChannelsKt;
 
 public class Reden implements ModInitializer {
+    //? if >=26.1 {
+    public static final Logger LOGGER = NOPLogger.NOP_LOGGER;
+    //?} else {
+    /*public static final Logger LOGGER = LoggerFactory.getLogger("template");
+    *///?}
     public static final String MOD_VERSION = /*$ mod_version*/ "0.11.2";
     public static final String MOD_ID = "reden";
     public static final String MOD_NAME = "Reden";
-    public static final Logger LOGGER = NOPLogger.NOP_LOGGER;
 
     @Override
     public void onInitialize() {
@@ -41,7 +53,21 @@ public class Reden implements ModInitializer {
         };
     }
 
+//? if >= 26.1 {
     public static Identifier identifier(String path) {
         return Identifier.fromNamespaceAndPath(MOD_ID, path);
     }
+//?} else if >= 1.21.11 {
+    /*public static Identifier identifier(String path) {
+        Identifier id = Identifier.tryParse(MOD_ID + ":" + path);
+        if (id == null) throw new IllegalArgumentException("Invalid identifier: " + path);
+        return id;
+    }
+*///?} else {
+    /*public static ResourceLocation identifier(String path) {
+        ResourceLocation id = ResourceLocation.tryParse(MOD_ID + ":" + path);
+        if (id == null) throw new IllegalArgumentException("Invalid identifier: " + path);
+        return id;
+    }
+*///?}
 }

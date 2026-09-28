@@ -2,6 +2,7 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.DebugKt;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -71,6 +72,7 @@ public class MixinSchedule {
     private <T> void onAddSchedule(ScheduledTick<T> scheduledTick, CallbackInfo ci) {
         long id = UndoMixinHelper.inheritedRecordId();
         if (id != 0) {
+            DebugKt.debugLogger.invoke("Scheduled tick at " + scheduledTick.pos() + ", adding it into record " + id);
             ((UndoableAccess) scheduledTick).setUndoId$reden(id);
         }
     }

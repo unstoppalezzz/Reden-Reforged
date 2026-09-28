@@ -3,7 +3,8 @@ plugins {
     kotlin("jvm") version "2.4.10" apply false
     kotlin("plugin.serialization") version "2.4.10" apply false
     id("net.fabricmc.fabric-loom") version "1.17.19" apply false
-    //id("dev.kikugie.j52j") version "1.0.2" apply false // Enables asset processing by writing json5 files
+    id("net.fabricmc.fabric-loom-remap") version "1.17.19" apply false
+    //id("dev.kikugie.j52j") version "1.0.2" apply false
     id("me.modmuss50.mod-publish-plugin") version "0.7.+" apply false
 }
 stonecutter active "26.3" /* [SC] DO NOT EDIT */

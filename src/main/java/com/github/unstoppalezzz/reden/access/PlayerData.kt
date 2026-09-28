@@ -79,6 +79,9 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
             (be as? BlockEntityInterface)?.saveLastNbt()
             val state = world.getBlockState(pos)
             return Entry(state, be?.lastSavedNbt(), be?.type, com.github.unstoppalezzz.reden.utils.server.tickCount).apply {
+                if (state.hasBlockEntity() && beData == null) {
+                    Reden.LOGGER.error("BlockEntity $be at $pos has no last saved nbt")
+                }
                 if (putNearByEntities &&
                     world.getBlockState(pos).getCollisionShape(world, pos).toAabbs().isNotEmpty()
                 ) {

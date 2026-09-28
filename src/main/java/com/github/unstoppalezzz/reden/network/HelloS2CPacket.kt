@@ -20,7 +20,11 @@ class HelloS2CPacket(
 }
 
 fun registerHello() {
+    //? if >=26.1 {
     PayloadTypeRegistry.clientboundConfiguration().register(ID, CODEC)
+    //?} else {
+    /*PayloadTypeRegistry.configurationS2C().register(ID, CODEC)
+    *///?}
     ServerConfigurationConnectionEvents.CONFIGURE.register { handler, _ ->
         ServerConfigurationNetworking.send(
             handler, HelloS2CPacket(

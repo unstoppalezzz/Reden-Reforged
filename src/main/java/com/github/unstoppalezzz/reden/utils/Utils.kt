@@ -26,6 +26,7 @@ import net.minecraft.world.level.levelgen.Heightmap
 import net.minecraft.world.level.lighting.LightEngine
 import java.io.IOException
 import java.io.InputStream
+//? if >=26.1
 import java.net.URL
 import java.util.*
 import kotlin.math.max
@@ -35,12 +36,18 @@ lateinit var server: MinecraftServer
 
 val gameFrozen: Boolean get() = server.tickRateManager().isFrozen
 
+val isOnServerThread: Boolean get() = ::server.isInitialized && server.isSameThread
+
 fun Position.toBlockPos(): BlockPos {
     return BlockPos.containing(this)
 }
 
 fun Player.sendMessage(s: String) {
+    //? if <= 1.21.1 || >= 26.1 {
     sendSystemMessage(Text.literal(s))
+    //?} else {
+    /*displayClientMessage(Text.literal(s), false)
+    *///?}
 }
 
 fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDATE_CLIENTS) {
@@ -51,6 +58,7 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
     getChunk(pos).run { getSection(getSectionIndex(pos.y)) }
         .setBlockState(pos.x and 15, pos.y and 15, pos.z and 15, state, false)
     getChunkAt(pos).run {
+        //? if >= 26.1 {
         this.heightmaps[Heightmap.Types.MOTION_BLOCKING]!!.update(pos.x and 15, pos.y, pos.z and 15, state)
         this.heightmaps[Heightmap.Types.MOTION_BLOCKING_NO_LEAVES]!!.update(
             pos.x and 15,
@@ -60,17 +68,18 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
         )
         this.heightmaps[Heightmap.Types.OCEAN_FLOOR]!!.update(pos.x and 15, pos.y, pos.z and 15, state)
         this.heightmaps[Heightmap.Types.WORLD_SURFACE]!!.update(pos.x and 15, pos.y, pos.z and 15, state)
-        //? if <= 1.21.1 {
-        /*isUnsaved = true
-        *///?} else {
+        //?}
+        //? if >= 1.21.2 {
         markUnsaved()
-        //?}
+        //?} else {
+        /*setUnsaved(true)
+        *///?}
 
-        //? if <= 1.21.1 {
-        /*if (LightEngine.hasDifferentLightProperties(this, pos, stateBefore, state)) {
-        *///?} else {
+        //? if >= 1.21.2 {
         if (LightEngine.hasDifferentLightProperties(stateBefore, state)) {
-        //?}
+        //?} else {
+        /*if (LightEngine.hasDifferentLightProperties(this@setBlockNoPP, pos, stateBefore, state)) {
+        *///?}
             skyLightSources.update(this, pos.x and 15, pos.y and 15, pos.z and 15)
             chunkSource.lightEngine.checkBlock(pos)
         }
@@ -103,7 +112,7 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
     //?}
 }
 
-
+//? if >= 26.1 {
 fun Level.setBlockSilent(pos: BlockPos, state: BlockState) {
     val stateBefore = getBlockState(pos)
     if (stateBefore.hasBlockEntity()) {
@@ -138,6 +147,7 @@ fun Level.setBlockSilent(pos: BlockPos, state: BlockState) {
         }
     }
 }
+//?}
 
 val isClient: Boolean get() = FabricLoader.getInstance().environmentType == EnvType.CLIENT
 
@@ -175,6 +185,7 @@ fun memorySizeToString(size: Int) {
 
 fun MutableComponent.red() = withStyle(ChatFormatting.RED)
 
+//? if >= 26.1 {
 fun URL.openStreamRetrying(retries: Int = 3): InputStream {
     var retry = retries
     while (retry > 0) {
@@ -188,6 +199,7 @@ fun URL.openStreamRetrying(retries: Int = 3): InputStream {
     Reden.LOGGER.error("Opening $this: max retries exceeded.")
     throw IOException("Opening $this: max retries exceeded.")
 }
+//?}
 
 fun checkMalilib() {
     try {
@@ -203,8 +215,6 @@ fun checkMalilib() {
         )
     }
 }
-
-
 @Deprecated("", level = DeprecationLevel.HIDDEN)
 fun generateRandomColor(alpha: Int, baseGray: Int, offsetWeight: Float): Int {
     require(offsetWeight > 0 && offsetWeight <= 1) { "The input offsetWeight must be between 0(inclusive) and 1 " }

@@ -10,7 +10,11 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry
 import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.network.codec.StreamCodec
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
+//? if >= 1.21.11 {
 import net.minecraft.resources.Identifier
+//?} else {
+/*import net.minecraft.resources.ResourceLocation as Identifier
+*///?}
 import kotlin.reflect.typeOf
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -33,7 +37,11 @@ interface PacketCodecHelper<T : CustomPacketPayload> {
     val ID: CustomPacketPayload.Type<T>
     val CODEC: StreamCodec<FriendlyByteBuf, T>
     fun playC2S() {
+        //? if >=26.1 {
         PayloadTypeRegistry.serverboundPlay().register(ID, CODEC)
+        //?} else {
+        /*PayloadTypeRegistry.playC2S().register(ID, CODEC)
+        *///?}
     }
 }
 

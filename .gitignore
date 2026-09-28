@@ -2,7 +2,6 @@
 .kotlin
 build/reports/
 buildSrc/build/classes
-mapping version/build/reports/
-mapping version/buildSrc/build/classes
 .vscode/
-mapping version/.vscode/
+versions/*/build/
+versions/*/bin/

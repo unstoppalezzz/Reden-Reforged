@@ -35,9 +35,10 @@ import net.minecraft.world.level.block.DetectorRailBlock
 
 object UndoMixinHelper {
     private const val PRIMARY_CAPTURE_RADIUS = 2
-    private const val SECONDARY_CAPTURE_RADIUS = 3
+    private const val SECONDARY_CAPTURE_RADIUS = 2
+    private const val COMPARATOR_HOPPER_CAPTURE_RADIUS = 2
 
-    private const val ENTITY_TRIGGER_LINGER_TICKS = 40
+    private const val ENTITY_TRIGGER_LINGER_TICKS = 3
     private var pendingLingerRecordId: Long? = null
     private var pendingLingerExpireTick: Int = Int.MIN_VALUE
 
@@ -59,6 +60,7 @@ object UndoMixinHelper {
 
     @JvmStatic
     fun inheritedRecordId(): Long {
+        if (!com.github.unstoppalezzz.reden.utils.isOnServerThread) return 0L
         recording?.let { return it.id }
         if (com.github.unstoppalezzz.reden.utils.gameFrozen) return 0L
         val id = pendingLingerRecordId ?: return 0L
@@ -105,8 +107,8 @@ object UndoMixinHelper {
         return secondary
     }
 
-    private fun collectExpandedCapturePositions(origin: BlockPos): LinkedHashSet<BlockPos> {
-        return collectNearbyCapturePositions(origin, SECONDARY_CAPTURE_RADIUS)
+    private fun collectExpandedCapturePositions(origin: BlockPos, radius: Int = SECONDARY_CAPTURE_RADIUS): LinkedHashSet<BlockPos> {
+        return collectNearbyCapturePositions(origin, radius)
     }
 
     private fun isRelevantRedstoneComponent(state: BlockState): Boolean {
@@ -162,12 +164,12 @@ object UndoMixinHelper {
     var isRestoring = false
     class UndoRecordEntry(val id: Long, val record: PlayerData.UndoRecord?, val reason: String)
     private var recordId = 20060210L
-    val undoRecordsMap: MutableMap<Long, PlayerData.UndoRecord> = HashMap()
+    val undoRecordsMap: java.util.TreeMap<Long, PlayerData.UndoRecord> = java.util.TreeMap()
     internal val undoRecords = mutableListOf<UndoRecordEntry>()
 
 
     private val recordTags = HashMap<Long, Long>()
-  
+
     private val frozenPositions = HashMap<Long, Int>()
 
     fun freezePositions(positions: Collection<BlockPos>, untilTick: Int, nowTick: Int) {
@@ -189,14 +191,14 @@ object UndoMixinHelper {
     @JvmStatic
     fun taggedRecordId(pos: BlockPos): Long {
         if (!recordTags.containsKey(pos.asLong())) return 0L
-        return undoRecordsMap.keys.maxOrNull() ?: 0L
+        return undoRecordsMap.lastEntry()?.key ?: 0L
     }
 
     @JvmStatic
     fun attributedRecordId(id: Long): Long {
         if (id == 0L) return 0L
         if (com.github.unstoppalezzz.reden.utils.gameFrozen) return id
-        val newest = undoRecordsMap.keys.maxOrNull() ?: return id
+        val newest = undoRecordsMap.lastEntry()?.key ?: return id
         return if (newest > id) newest else id
     }
 
@@ -237,6 +239,10 @@ object UndoMixinHelper {
         transform: (PlayerData.Entry) -> PlayerData.Entry = { it }
     ) {
         val rec = recording ?: return
+        //? if <26.1 {
+        /*
+        if (world.isOutsideBuildHeight(pos)) return
+        *///?}
         val key = pos.asLong()
         if (world.getBlockState(pos).hasRecordTag()) {
             recordTags[key] = rec.id
@@ -273,7 +279,7 @@ object UndoMixinHelper {
     }
 
     private const val ENTITY_TRIGGER_CAPTURE_RADIUS = 3
-    private const val TRIPWIRE_CAPTURE_RADIUS = 6
+    private const val TRIPWIRE_CAPTURE_RADIUS = 4
 
 
     private fun captureNearbyEntityTriggerSnapshot(world: ServerLevel, pos: BlockPos, radius: Int) {
@@ -295,9 +301,9 @@ object UndoMixinHelper {
         }
 
         val localCandidates = linkedSetOf<BlockPos>()
-        for (dx in -SECONDARY_CAPTURE_RADIUS..SECONDARY_CAPTURE_RADIUS) {
-            for (dy in -SECONDARY_CAPTURE_RADIUS..SECONDARY_CAPTURE_RADIUS) {
-                for (dz in -SECONDARY_CAPTURE_RADIUS..SECONDARY_CAPTURE_RADIUS) {
+        for (dx in -COMPARATOR_HOPPER_CAPTURE_RADIUS..COMPARATOR_HOPPER_CAPTURE_RADIUS) {
+            for (dy in -COMPARATOR_HOPPER_CAPTURE_RADIUS..COMPARATOR_HOPPER_CAPTURE_RADIUS) {
+                for (dz in -COMPARATOR_HOPPER_CAPTURE_RADIUS..COMPARATOR_HOPPER_CAPTURE_RADIUS) {
                     if (dx == 0 && dy == 0 && dz == 0) continue
                     localCandidates += BlockPos(pos.x + dx, pos.y + dy, pos.z + dz)
                 }
@@ -315,9 +321,14 @@ object UndoMixinHelper {
         }
     }
 
+    private fun nearbyCaptureRadius(state: BlockState): Int =
+        if (state.block == Blocks.COMPARATOR || state.block == Blocks.HOPPER) COMPARATOR_HOPPER_CAPTURE_RADIUS
+        else SECONDARY_CAPTURE_RADIUS
+
     private fun captureNearbyRedstoneSnapshot(
         world: ServerLevel,
         pos: BlockPos,
+        radius: Int = SECONDARY_CAPTURE_RADIUS,
         isDirectTrigger: Boolean = true,
         visitedThisPass: MutableSet<Long> = mutableSetOf()
     ) {
@@ -331,7 +342,7 @@ object UndoMixinHelper {
                 return
             }
 
-            val candidates = collectExpandedCapturePositions(pos)
+            val candidates = collectExpandedCapturePositions(pos, radius)
             for (candidate in candidates) {
                 val state = world.getBlockState(candidate)
                 if (state.block == Blocks.AIR) continue
@@ -420,7 +431,7 @@ object UndoMixinHelper {
         captureComparatorSnapshot(world, pos)
         captureHopperSnapshot(world, pos)
         if (shouldRunRedstoneNeighborhoodScan(blockState)) {
-            captureNearbyRedstoneSnapshot(world, pos)
+            captureNearbyRedstoneSnapshot(world, pos, nearbyCaptureRadius(blockState))
             captureConnectedRedstoneSnapshot(world, pos)
         }
         if (isEntityTriggerComponent(blockState)) {
@@ -489,7 +500,7 @@ object UndoMixinHelper {
             captureComparatorSnapshot(world, blockEntity.blockPos)
             captureHopperSnapshot(world, blockEntity.blockPos)
             if (shouldRunRedstoneNeighborhoodScan(blockEntity.blockState)) {
-                captureNearbyRedstoneSnapshot(world, blockEntity.blockPos)
+                captureNearbyRedstoneSnapshot(world, blockEntity.blockPos, nearbyCaptureRadius(blockEntity.blockState))
             }
 
             captureBaselineIfAbsent(world, blockEntity.blockPos)

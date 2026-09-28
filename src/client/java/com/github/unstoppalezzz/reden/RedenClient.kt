@@ -4,8 +4,12 @@ import com.github.unstoppalezzz.reden.malilib.GuiConfigs
 import com.github.unstoppalezzz.reden.malilib.HOTKEYS
 import com.github.unstoppalezzz.reden.malilib.configureKeyCallbacks
 import com.github.unstoppalezzz.reden.malilib.getAllOptions
+//? if <26.1
+/*import com.github.unstoppalezzz.reden.network.Undo*/
 import com.github.unstoppalezzz.reden.network.registerClientPackets
 import com.github.unstoppalezzz.reden.utils.checkMalilib
+import com.github.unstoppalezzz.reden.malilib.DEBUG_LOGGING
+import com.github.unstoppalezzz.reden.utils.setDebug
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import fi.dy.masa.malilib.config.ConfigManager
@@ -36,6 +40,7 @@ fun loadMalilibSettings() {
     }
     val jo = GSON.fromJson(Files.readString(path), JsonObject::class.java)
     ConfigUtils.readConfigBase(jo, Reden.MOD_NAME, getAllOptions())
+    setDebug(DEBUG_LOGGING.booleanValue)
 }
 
 fun saveMalilibOptions() {
@@ -51,6 +56,13 @@ fun saveMalilibOptions() {
 class RedenClient : ClientModInitializer {
     override fun onInitializeClient() {
         checkMalilib()
+        //? if <26.1 {
+        /*try {
+            Undo.register()
+        } catch (t: Throwable) {
+            Reden.LOGGER.error("Failed to register Undo payload on client", t)
+        }
+        *///?}
         registerClientPackets()
         fi.dy.masa.malilib.registry.Registry.CONFIG_SCREEN.registerConfigScreenFactory(
             fi.dy.masa.malilib.util.data.ModInfo(
@@ -70,6 +82,7 @@ class RedenClient : ClientModInitializer {
                 }
             })
             loadMalilibSettings()
+            DEBUG_LOGGING.setValueChangeCallback { setDebug(it.booleanValue) }
             val mc = Minecraft.getInstance()
             configureKeyCallbacks(mc)
 
@@ -85,5 +98,24 @@ class RedenClient : ClientModInitializer {
                 }
             })
         }
+        //? if <26.1 {
+        /*val packs = listOf(
+            Reden.identifier("greenstone"),
+        )
+        packs.forEach {
+            if (!ResourceManagerHelper.registerBuiltinResourcePack(
+                    it, FabricLoader.getInstance().getModContainer(Reden.MOD_ID).get(), ResourcePackActivationType.NORMAL
+                )
+            ) {
+                Reden.LOGGER.error("Failed to register $it resource pack")
+            }
+        }
+
+        if (Calendar.getInstance()[Calendar.MONTH] == Calendar.APRIL
+            && Calendar.getInstance()[Calendar.DAY_OF_MONTH] == 1
+        ) {
+            Minecraft.getInstance().resourcePackRepository.addPack("reden:greenstone")
+        }
+        *///?}
     }
 }

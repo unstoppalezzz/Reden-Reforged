@@ -1,7 +1,11 @@
 package com.github.unstoppalezzz.reden.mixin.client.chat;
 
 import com.github.unstoppalezzz.reden.access.VisibleChatHudLineAccess;
+//? if >=26.1 {
 import net.minecraft.client.multiplayer.chat.GuiMessage;
+//?} else {
+/*import net.minecraft.client.GuiMessage;
+*///?}
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;

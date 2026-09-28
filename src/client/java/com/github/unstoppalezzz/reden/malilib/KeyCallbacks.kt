@@ -10,7 +10,11 @@ import net.minecraft.client.Minecraft
 
 fun configureKeyCallbacks(mc: Minecraft) {
     REDEN_CONFIG_KEY.callback {
+        //? if >=26.1 {
         mc.setScreenAndShow(GuiConfigs())
+        //?} else {
+        /*mc.setScreen(GuiConfigs())
+        *///?}
         true
     }
     UNDO_KEY.callback {
@@ -36,12 +40,13 @@ private fun ConfigHotkey.callback(action: () -> Boolean) {
                 true
             } else false
         } catch (e: Exception) {
+            Reden.LOGGER.error("Error when executing hotkey $name", e)
 //            reportException(e)
-//? if <= 1.21.1 {
-            /*Minecraft.getInstance().player?.sendSystemMessage(Text.literal("Error when executing hotkey $name").red())
-*///?} else {
+//? if <= 1.21.1 || >=26.1 {
             Minecraft.getInstance().player?.sendSystemMessage(Text.literal("Error when executing hotkey $name").red())
-//?}
+//?} else {
+            /*Minecraft.getInstance().player?.displayClientMessage(Text.literal("Error when executing hotkey $name").red(), false)
+*///?}
             false
         }
     }
