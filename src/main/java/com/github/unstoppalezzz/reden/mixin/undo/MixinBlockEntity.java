@@ -49,31 +49,36 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
             if (lastSaveTime == com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount()) {
                 return;
             }
-            if (isComponentsValid(components)) {
-                lastComponents = components;
-                DebugKt.debugLogger.invoke("saved lastComponents at " + worldPosition.toShortString() + ", cause=reden manually, " + lastComponents);
-            } else if (level != null) {
+            reden$snapshot("reden manually");
+        }
+    }
+
+    @Unique
+    private void reden$snapshot(String cause) {
+        if (isComponentsValid(components)) {
+            lastComponents = components;
+            DebugKt.debugLogger.invoke("saved lastComponents at " + worldPosition.toShortString() + ", cause=" + cause + ", " + lastComponents);
+        } else if (level != null) {
 //? if >= 26.1 {
-                try {
-                    var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
-                            net.minecraft.util.ProblemReporter.DISCARDING,
-                            level.registryAccess()
-                    );
-                    this.saveWithId(vo);
-                    lastSavedNbt = vo.buildResult();
-                } catch (Throwable t) {
-                }
-//?} else if >= 1.21.6 {
-                /*TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+            try {
+                var vo = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
+                        net.minecraft.util.ProblemReporter.DISCARDING,
+                        level.registryAccess()
+                );
                 this.saveWithId(vo);
                 lastSavedNbt = vo.buildResult();
-*///?} else {
-                /*lastSavedNbt = this.saveWithId(level.registryAccess());
-*///?}
-                DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=reden manually, " + lastSavedNbt);
+            } catch (Throwable t) {
             }
-            lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
+//?} else if >= 1.21.6 {
+            /*TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+            this.saveWithId(vo);
+            lastSavedNbt = vo.buildResult();
+*///?} else {
+            /*lastSavedNbt = this.saveWithId(level.registryAccess());
+*///?}
+            DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=" + cause + ", " + lastSavedNbt);
         }
+        lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
     }
 
     @Unique
@@ -102,6 +107,26 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     private void onBlockEntityChanged(CallbackInfo ci) {
         if (level instanceof ServerLevel serverLevel) {
             UndoMixinHelper.postSetBlock(serverLevel, worldPosition, blockState, true);
+        }
+    }
+
+    @Inject(
+            method = "setChanged()V",
+            at = @At("TAIL")
+    )
+    private void reden$refreshSnapshotAfterChange(CallbackInfo ci) {
+        if (level instanceof ServerLevel) {
+            reden$snapshot("after setChanged");
+        }
+    }
+
+    @Inject(
+            method = "setLevel",
+            at = @At("TAIL")
+    )
+    private void reden$snapshotOnLevelSet(CallbackInfo ci) {
+        if (level instanceof ServerLevel && lastSavedNbt == null && lastComponents == null) {
+            reden$snapshot("level set");
         }
     }
 

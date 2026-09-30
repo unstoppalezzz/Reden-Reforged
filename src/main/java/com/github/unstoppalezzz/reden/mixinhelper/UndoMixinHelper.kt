@@ -31,6 +31,8 @@ import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.PressurePlateBlock
 import net.minecraft.world.level.block.TripWireBlock
 import net.minecraft.world.level.block.DetectorRailBlock
+import com.github.unstoppalezzz.reden.utils.debugLogger
+import com.github.unstoppalezzz.reden.utils.isDebug
 
 
 object UndoMixinHelper {
@@ -195,6 +197,10 @@ object UndoMixinHelper {
     }
 
     @JvmStatic
+    fun recordIdForEntity(uuid: java.util.UUID): Long =
+        undoRecordsMap.descendingMap().entries.firstOrNull { it.value.entities.containsKey(uuid) }?.key ?: 0L
+
+    @JvmStatic
     fun attributedRecordId(id: Long): Long {
         if (id == 0L) return 0L
         if (com.github.unstoppalezzz.reden.utils.gameFrozen) return id
@@ -202,11 +208,17 @@ object UndoMixinHelper {
         return if (newest > id) newest else id
     }
 
+    @JvmStatic
     fun cleanup() {
         undoRecordsMap.clear()
         undoRecords.clear()
         recordTags.clear()
         frozenPositions.clear()
+        pendingLingerRecordId = null
+        pendingLingerExpireTick = Int.MIN_VALUE
+        throttleTick = Int.MIN_VALUE
+        genericOriginsExpandedThisTick.clear()
+        isRestoring = false
     }
 
     private fun filterLogById(undoId: Long) =
@@ -256,6 +268,17 @@ object UndoMixinHelper {
         (be as? BlockEntityInterface)?.saveLastNbt()
         val entry = transform(rec.fromWorld(world, pos, true))
         rec.data.putIfAbsent(key, entry)
+        if (isDebug) {
+            val lost = if (entry.state.block is net.minecraft.world.level.block.piston.MovingPistonBlock) " (ALREADY MOVING, pre-push state lost)" else ""
+            debugLogger("[capture] baseline at ${pos.toShortString()} into record ${rec.id}: ${entry.state}$lost")
+        }
+    }
+
+    private fun isPistonRelated(state: BlockState): Boolean {
+        val block = state.block
+        return block is net.minecraft.world.level.block.piston.PistonBaseBlock ||
+            block is net.minecraft.world.level.block.piston.PistonHeadBlock ||
+            block is net.minecraft.world.level.block.piston.MovingPistonBlock
     }
 
     private fun captureComparatorSnapshot(world: ServerLevel, pos: BlockPos) {
@@ -464,6 +487,15 @@ object UndoMixinHelper {
     @JvmStatic
     fun monitorSetBlock(world: ServerLevel, pos: BlockPos, blockState: BlockState) {
         if (isRestoring) return
+        if (isDebug && recording == null) {
+            val old = world.getBlockState(pos)
+            if (isPistonRelated(old) || isPistonRelated(blockState)) {
+                debugLogger(
+                    "[unrecorded] setBlock at ${pos.toShortString()}: $old -> $blockState, " +
+                        "linger=$pendingLingerRecordId expires=$pendingLingerExpireTick now=${com.github.unstoppalezzz.reden.utils.server.tickCount}"
+                )
+            }
+        }
         world.modified(pos)
 
         val isChainReactionCandidate = isEntityTriggerComponent(blockState) ||
@@ -586,6 +618,17 @@ object UndoMixinHelper {
             playerView.isRecording = true
             val record = addRecord(cause, player)
             playerView.undo.add(record)
+            if (isDebug) {
+                val caller = Throwable().stackTrace
+                    .drop(1)
+                    .filterNot { it.className.startsWith("com.github.unstoppalezzz.reden.mixinhelper") }
+                    .take(4)
+                    .joinToString(" <- ") { "${it.className.substringAfterLast('.')}.${it.methodName}" }
+                debugLogger(
+                    "[record] created ${record.id} cause=$cause player=${player.scoreboardName} " +
+                        "tick=${com.github.unstoppalezzz.reden.utils.server.tickCount} via $caller"
+                )
+            }
             pushRecord(record.id) { "player recording/${player.scoreboardName}/$cause" }
         }
     }

@@ -67,7 +67,7 @@ class RedenClient : ClientModInitializer {
         fi.dy.masa.malilib.registry.Registry.CONFIG_SCREEN.registerConfigScreenFactory(
             fi.dy.masa.malilib.util.data.ModInfo(
                 "reden",
-                "Reden",
+                Reden.MOD_NAME,
                 ::GuiConfigs
             )
         )
@@ -94,7 +94,7 @@ class RedenClient : ClientModInitializer {
                 }
 
                 override fun addHotkeys(keybindManager: IKeybindManager) {
-                    keybindManager.addHotkeysForCategory("Reden", "reden.hotkeys.category.generic_hotkeys", HOTKEYS)
+                    keybindManager.addHotkeysForCategory(Reden.MOD_NAME, "reden.hotkeys.category.generic_hotkeys", HOTKEYS)
                 }
             })
         }

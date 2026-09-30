@@ -29,7 +29,13 @@ public class MixinSchedule {
     private <T> void onRunSchedule(BiConsumer<BlockPos, T> biConsumer, CallbackInfo ci, @Local ScheduledTick scheduledTick) {
         if (1 == 1) {
             long undoId = ((UndoableAccess) scheduledTick).getUndoId$reden();
-            UndoMixinHelper.pushRecord(UndoMixinHelper.attributedRecordId(undoId), () -> "scheduled tick/" + scheduledTick.pos().toShortString());
+            long attributed = UndoMixinHelper.attributedRecordId(undoId);
+            UndoMixinHelper.pushRecord(attributed, () -> "scheduled tick/" + scheduledTick.pos().toShortString());
+            if (DebugKt.isDebug()) {
+                DebugKt.debugLogger.invoke("[tick] running at " + scheduledTick.pos().toShortString() + " type=" + scheduledTick.type()
+                        + " undoId=" + undoId + " attributed=" + attributed
+                        + " recordExists=" + (UndoMixinHelper.INSTANCE.getRecording() != null));
+            }
         }
     }
     @Inject(
@@ -59,6 +65,8 @@ public class MixinSchedule {
             original.call(consumer, pos, type);
             return;
         }
+        DebugKt.debugLogger.invoke("[tick] frozen at " + scheduledTick.pos().toShortString() + " until=" + until + " now=" + now
+                + ", DEFERRED (not dropped) to " + (scheduledTick.triggerTick() + (until - now) + 1));
         ((LevelTicks) (Object) this).schedule(new ScheduledTick(
                 scheduledTick.type(), scheduledTick.pos(), scheduledTick.triggerTick() + (until - now) + 1, 0L));
     }
@@ -74,6 +82,8 @@ public class MixinSchedule {
         if (id != 0) {
             DebugKt.debugLogger.invoke("Scheduled tick at " + scheduledTick.pos() + ", adding it into record " + id);
             ((UndoableAccess) scheduledTick).setUndoId$reden(id);
+        } else if (DebugKt.isDebug()) {
+            DebugKt.debugLogger.invoke("Scheduled tick at " + scheduledTick.pos() + " with NO record (trigger tick " + scheduledTick.triggerTick() + ")");
         }
     }
 }

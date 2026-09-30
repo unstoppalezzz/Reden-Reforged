@@ -1,5 +1,6 @@
 package com.github.unstoppalezzz.reden;
 
+import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import com.github.unstoppalezzz.reden.utils.UtilsKt;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -24,12 +25,13 @@ public class Reden implements ModInitializer {
     *///?}
     public static final String MOD_VERSION = /*$ mod_version*/ "0.11.2";
     public static final String MOD_ID = "reden";
-    public static final String MOD_NAME = "Reden";
+    public static final String MOD_NAME = "Reden Reforged";
 
     @Override
     public void onInitialize() {
         ChannelsKt.registerChannelServer();
         ServerLifecycleEvents.SERVER_STARTED.register(UtilsKt::setServer);
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> UndoMixinHelper.cleanup());
     }
 
     private ClassLoader hijackClassLoader() {

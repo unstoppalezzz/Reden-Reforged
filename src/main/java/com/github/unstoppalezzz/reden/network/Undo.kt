@@ -117,13 +117,24 @@ class Undo(
             val skippedStale = mutableListOf<BlockPos>()
             val skippedMoving = mutableListOf<BlockPos>()
             val movingRestores = mutableListOf<Triple<BlockPos, BlockPos, net.minecraft.world.level.block.state.BlockState>>()
+            debugLogger(
+                "[undo] ${if (isUndo) "undo" else "redo"} record ${record.id} at tick ${com.github.unstoppalezzz.reden.utils.server.tickCount}: " +
+                    "${record.data.size} blocks, ${record.entities.size} entities, active=${UndoMixinHelper.recording?.id}"
+            )
             record.data.forEach { (posLong, entry) ->
                 val pos = BlockPos.of(posLong)
                 val currentState = world.getBlockState(pos)
                 val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
                 if (sec.getModifyTime(pos) < entry.time && isUndo) {
                     skippedStale += pos
+                    debugLogger(
+                        "[undo] skip STALE ${pos.toShortString()}: modifyTime=${sec.getModifyTime(pos)} < entryTime=${entry.time}, " +
+                            "current=$currentState, recorded=${entry.state}"
+                    )
                     return@forEach
+                }
+                if (entry.state != currentState) {
+                    debugLogger("[undo] restore ${pos.toShortString()}: $currentState -> ${entry.state}")
                 }
                 if (entry.state.block is net.minecraft.world.level.block.piston.MovingPistonBlock) {
                     val tag = entry.beData as? CompoundTag
@@ -136,6 +147,10 @@ class Undo(
                     *///?}
                     if (tag == null || carried == null || isSource) {
                         skippedMoving += pos
+                        debugLogger(
+                            "[undo] skip MOVING ${pos.toShortString()}: tag=${tag != null} carried=$carried source=$isSource, " +
+                                "current=$currentState (left untouched)"
+                        )
                         return@forEach
                     }
                     //? if >= 1.21.5 {
@@ -146,6 +161,10 @@ class Undo(
                     val moveDir = if (!tag.contains("extending") || tag.getBoolean("extending")) facing else facing.opposite
                     *///?}
                     movingRestores += Triple(pos, pos.relative(moveDir.opposite), carried)
+                    debugLogger(
+                        "[undo] moving entry ${pos.toShortString()}: will set AIR there and put $carried back at " +
+                            "${pos.relative(moveDir.opposite).toShortString()} (currently ${world.getBlockState(pos.relative(moveDir.opposite))})"
+                    )
                     return@forEach
                 }
                 world.modified(pos, entry.time)
@@ -336,6 +355,14 @@ class Undo(
                 }
                 .forEach { pos -> refreshComparatorOutput(world, pos) }
             *///?}
+
+            val frozen = restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }
+            debugLogger(
+                "[undo] record ${record.id} done at tick ${com.github.unstoppalezzz.reden.utils.server.tickCount}: " +
+                    "restored=${restoredPositions.size}, skippedStale=${skippedStale.map { it.toShortString() }}, " +
+                    "skippedMoving=${skippedMoving.map { it.toShortString() }}, " +
+                    "frozen(1 tick)=${frozen.map { "${it.toShortString()}:${world.getBlockState(it).block}" }}"
+            )
         }
         private fun <T: PlayerData.UndoRedoRecord> MutableList<T>.lastValid(): T? {
             while (this.isNotEmpty()) {
@@ -380,6 +407,11 @@ class Undo(
                     sendStatus(16)
                     return@registerGlobalReceiver
                 }
+                debugLogger(
+                    "[undo] request status=${packet.status}: undo=${view.undo.map { it.id }} redo=${view.redo.map { it.id }} " +
+                        "isRecording=${view.isRecording} active=${UndoMixinHelper.recording?.id} " +
+                        "liveRecords=${UndoMixinHelper.undoRecordsMap.keys}"
+                )
                 UndoMixinHelper.playerStopRecording(context.player())
                 if (UndoMixinHelper.recording != null) {
                     Reden.LOGGER.error("Undo when a record is still active, id=" + UndoMixinHelper.recording?.id)

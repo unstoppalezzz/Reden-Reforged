@@ -2,6 +2,7 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -27,6 +28,11 @@ public class MixinMovingPiston {
             if (shouldTrack) {
                 if (be instanceof UndoableAccess access) {
                     UndoMixinHelper.pushRecord(access.getUndoId$reden(), () -> "piston block entity tick/" + pos.toShortString());
+                    if (DebugKt.isDebug()) {
+                        DebugKt.debugLogger.invoke("[piston] finishing move at " + pos.toShortString() + " carried=" + be.getMovedState()
+                                + " source=" + be.isSourcePiston() + " undoId=" + access.getUndoId$reden()
+                                + " recordExists=" + (UndoMixinHelper.INSTANCE.getRecording() != null));
+                    }
                 }
             }
             PistonMovingBlockEntity.tick(world1, pos, state1, be);

@@ -27,6 +27,7 @@
     "undo.MixinServerWorld",
     "undo.MixinServerWorldChunk",
     "undo.MixinTntEntity",
+    "undo.MixinFallingBlockEntity",
     "undo.MixinTripWireBlock",
     "undo.data.MixinChunkSection",
     "undo.helper.NoOpMixin"

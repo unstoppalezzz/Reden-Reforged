@@ -179,6 +179,67 @@ tasks.register<Copy>("buildAndCollect") {
     dependsOn("build")
 }
 
+if (stonecutter.current.project == stonecutter.versions.last().project) {
+    val multiversionId = "${mod.id}-multiversion"
+    val multiversionTargets = stonecutter.versions.map { it.project to it.version }
+
+    val generateMultiversionModJson by tasks.registering {
+        group = "build"
+        val out = rootProject.layout.buildDirectory.file("multiversion/fabric.mod.json")
+        inputs.property("targets", multiversionTargets.map { it.first })
+        inputs.property("version", mod.version)
+        outputs.file(out)
+        doLast {
+            val jars = multiversionTargets.joinToString(",\n") { (_, v) ->
+                """    { "file": "META-INF/jars/${mod.id}-${mod.version}+$v.jar" }"""
+            }
+            out.get().asFile.apply { parentFile.mkdirs() }.writeText(
+                """
+                |{
+                |  "schemaVersion": 1,
+                |  "id": "$multiversionId",
+                |  "version": "${mod.version}",
+                |  "name": "Reden Reforged (all versions)",
+                |  "description": "Container that loads the Reden Reforged build matching the running Minecraft version.",
+                |  "license": "LGPL-v3.0-only",
+                |  "environment": "*",
+                |  "jars": [
+                |$jars
+                |  ],
+                |  "depends": {
+                |    "fabricloader": ">=0.15",
+                |    "${mod.id}": "*"
+                |  },
+                |  "custom": {
+                |    "modmenu": { "badges": ["library"], "parent": "${mod.id}" }
+                |  }
+                |}
+                |""".trimMargin()
+            )
+        }
+    }
+
+    val multiversionJar = tasks.register<Jar>("multiversionJar") {
+        group = "build"
+        description = "Builds every version and bundles them into one jar that works on all supported Minecraft versions."
+        archiveBaseName.set(mod.id)
+        archiveVersion.set("${mod.version}")
+        archiveClassifier.set("")
+        destinationDirectory.set(rootProject.layout.buildDirectory.dir("libs"))
+        from(generateMultiversionModJson)
+        multiversionTargets.forEach { (targetProject, targetVersion) ->
+            val targetObfuscated = stonecutter.eval(targetVersion, "<26.1")
+            dependsOn(":$targetProject:" + if (targetObfuscated) "remapJar" else "jar")
+            from(rootProject.file("versions/$targetProject/build/libs/${mod.id}-${mod.version}+$targetVersion.jar")) {
+                into("META-INF/jars")
+            }
+        }
+    }
+
+    // `./gradlew build` also produces the multiversion jar.
+    tasks.named("build") { dependsOn(multiversionJar) }
+}
+
 if (!obfuscated) {
     tasks.register<com.github.unstoppalezzz.reden.build.MapMojangToIntermediaryTask>("mapMojangToIntermediary") {
         inputFile.set(rootProject.file("src/methods.txt"))

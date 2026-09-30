@@ -13,7 +13,7 @@ repositories {
 
 dependencies {
     // 添加mapping-io依赖
-    implementation("net.fabricmc:mapping-io:0.5.0")
+    implementation("net.fabricmc:mapping-io:0.8.0")
     implementation("net.fabricmc:tiny-mappings-parser:0.3.0+build.17")
 
     // 添加其他需要的依赖
