@@ -21,12 +21,8 @@ import fi.dy.masa.malilib.hotkeys.IKeybindManager
 import fi.dy.masa.malilib.hotkeys.IKeybindProvider
 import fi.dy.masa.malilib.util.FileUtils
 import net.fabricmc.api.ClientModInitializer
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper
-import net.fabricmc.fabric.api.resource.ResourcePackActivationType
-import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.client.Minecraft
 import java.nio.file.Files
-import java.util.*
 import kotlin.io.path.createParentDirectories
 import kotlin.io.path.exists
 
@@ -98,24 +94,5 @@ class RedenClient : ClientModInitializer {
                 }
             })
         }
-        //? if <26.1 {
-        /*val packs = listOf(
-            Reden.identifier("greenstone"),
-        )
-        packs.forEach {
-            if (!ResourceManagerHelper.registerBuiltinResourcePack(
-                    it, FabricLoader.getInstance().getModContainer(Reden.MOD_ID).get(), ResourcePackActivationType.NORMAL
-                )
-            ) {
-                Reden.LOGGER.error("Failed to register $it resource pack")
-            }
-        }
-
-        if (Calendar.getInstance()[Calendar.MONTH] == Calendar.APRIL
-            && Calendar.getInstance()[Calendar.DAY_OF_MONTH] == 1
-        ) {
-            Minecraft.getInstance().resourcePackRepository.addPack("reden:greenstone")
-        }
-        *///?}
     }
 }

@@ -8,8 +8,7 @@
     "chat.VisibleChatHudLineMixin",
     "keybind.MixinKeyMapping",
     "malilib.IMixinGuiListBase",
-    "malilib.IMixinWidgetListBase",
-    "greenStone.MixinRedstone"
+    "malilib.IMixinWidgetListBase"
   ],
   "injectors": {
     "defaultRequire": 1
