@@ -89,16 +89,20 @@ class Undo(
             }
         }
 
-        private fun rescheduleRestoredTripwires(world: ServerLevel, restoredPositions: List<BlockPos>) {
+        private fun rescheduleRestoredEntityTriggers(world: ServerLevel, restoredPositions: List<BlockPos>) {
             restoredPositions.forEach { pos ->
                 val state = world.getBlockState(pos)
-                if (state.block is net.minecraft.world.level.block.TripWireBlock) {
-                    world.scheduleTick(pos, state.block, TRIPWIRE_RECHECK_DELAY)
+                val block = state.block
+                if (block is net.minecraft.world.level.block.TripWireBlock ||
+                    block is net.minecraft.world.level.block.DetectorRailBlock ||
+                    block is net.minecraft.world.level.block.BasePressurePlateBlock
+                ) {
+                    world.scheduleTick(pos, block, ENTITY_TRIGGER_RECHECK_DELAY)
                 }
             }
         }
 
-        private const val TRIPWIRE_RECHECK_DELAY = 10
+        private const val ENTITY_TRIGGER_RECHECK_DELAY = 10
 
         private fun destroyPrimedTntAt(world: ServerLevel, pos: BlockPos) {
             val center = net.minecraft.world.phys.Vec3.atCenterOf(pos)
@@ -247,7 +251,7 @@ class Undo(
             UndoMixinHelper.freezePositions(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
-            rescheduleRestoredTripwires(world, restoredPositions)
+            rescheduleRestoredEntityTriggers(world, restoredPositions)
 
             restoredPositions
                 .filter { pos ->
@@ -345,7 +349,7 @@ class Undo(
             UndoMixinHelper.freezePositions(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
-            rescheduleRestoredTripwires(world, restoredPositions)
+            rescheduleRestoredEntityTriggers(world, restoredPositions)
 
             restoredPositions
                 .filter { pos ->
