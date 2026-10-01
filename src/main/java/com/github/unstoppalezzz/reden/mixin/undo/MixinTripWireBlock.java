@@ -63,16 +63,17 @@ public class MixinTripWireBlock {
             return;
         }
         boolean pushed = false;
-       
         if (UndoMixinHelper.INSTANCE.getRecording() == null) {
-            long id = UndoMixinHelper.taggedRecordId(pos);
-            if (id != 0) {
-                UndoMixinHelper.pushRecord(id, () -> reden$reason(pos));
-                pushed = true;
+            if (entity instanceof ServerPlayer player && !state.getValue(TripWireBlock.POWERED)) {
+                UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.USE_BLOCK);
             }
-        }
-        if (!pushed && entity instanceof ServerPlayer player) {
-            UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.USE_BLOCK);
+            if (UndoMixinHelper.INSTANCE.getRecording() == null) {
+                long id = UndoMixinHelper.taggedRecordId(pos);
+                if (id != 0) {
+                    UndoMixinHelper.pushRecord(id, () -> reden$reason(pos));
+                    pushed = true;
+                }
+            }
         }
         reden$pushed.push(pushed);
     }

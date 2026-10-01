@@ -30,7 +30,7 @@ val mcDep = property("mod.mc_dep").toString()
 
 version = "${mod.version}+$mcVersion"
 group = mod.group
-base { archivesName.set(mod.id) }
+base { archivesName.set("reden") }
 
 loom.splitEnvironmentSourceSets()
 loom.mods.create("template") {
