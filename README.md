@@ -23,7 +23,7 @@ This fork exists because the original project has not been updated in over a yea
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin)
 
 ## Mod Platforms
-- modrinth still under review
+- [modrinth](https://modrinth.com/mod/reden-reforged) still under review
 - [curseforge](https://www.curseforge.com/minecraft/mc-mods/reden-reforged)  
 ## Known issues
  - breaks when redstone uses moving entitys - mostly fixed
