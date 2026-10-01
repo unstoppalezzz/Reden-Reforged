@@ -32,6 +32,7 @@ This fork exists because the original project has not been updated in over a yea
 
  - removed telemetry
  - added better container support when undoing
+ - added support for pressure plates and string updates  
 
 ## Credits
 
