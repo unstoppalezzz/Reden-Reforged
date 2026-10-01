@@ -13,7 +13,7 @@
     "issues": "https://github.com/unstoppalezzz/Reden-Reforged/issues"
   },
   "license": "LGPL-v3.0-only",
-  "icon": "assets/reden/icon.png",
+  "icon": "assets/reden-reforged/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [

@@ -166,7 +166,7 @@ object ResourceLoader {
 
     @JvmStatic
     fun loadLang(lang: String) =
-        loadStringOrNull("assets/reden/lang/$lang.json")?.let {
+        loadStringOrNull("assets/reden-reforged/lang/$lang.json")?.let {
             @Suppress("UNCHECKED_CAST")
             Gson().fromJson(it, Map::class.java).filterValues { value -> value is String } as Map<String, String>
         }

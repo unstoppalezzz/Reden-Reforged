@@ -24,7 +24,7 @@ public class Reden implements ModInitializer {
     /*public static final Logger LOGGER = LoggerFactory.getLogger("template");
     *///?}
     public static final String MOD_VERSION = /*$ mod_version*/ "0.11.2";
-    public static final String MOD_ID = "reden";
+    public static final String MOD_ID = "reden-reforged";
     public static final String MOD_NAME = "Reden Reforged";
 
     @Override

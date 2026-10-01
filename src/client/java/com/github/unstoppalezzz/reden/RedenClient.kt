@@ -62,13 +62,13 @@ class RedenClient : ClientModInitializer {
         registerClientPackets()
         fi.dy.masa.malilib.registry.Registry.CONFIG_SCREEN.registerConfigScreenFactory(
             fi.dy.masa.malilib.util.data.ModInfo(
-                "reden",
+                Reden.MOD_ID,
                 Reden.MOD_NAME,
                 ::GuiConfigs
             )
         )
         InitializationHandler.getInstance().registerInitializationHandler {
-            ConfigManager.getInstance().registerConfigHandler("reden", object : IConfigHandler {
+            ConfigManager.getInstance().registerConfigHandler(Reden.MOD_ID, object : IConfigHandler {
                 override fun load() {
                     loadMalilibSettings()
                 }

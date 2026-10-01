@@ -11,7 +11,7 @@ import net.minecraft.network.chat.Component
 import com.github.unstoppalezzz.reden.utils.multiver.sendSystemMessage
 //?}
 
-private const val MESSAGE_PREFIX = "${Reden.MOD_ID}.message."
+private const val MESSAGE_PREFIX = "reden.message."
 
 fun translateMessage(category: String, key: String, vararg args: Any): Component {
     return Text.translatable("$MESSAGE_PREFIX$category.base", Text.translatable("$MESSAGE_PREFIX$category.$key", args))
