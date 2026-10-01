@@ -26,14 +26,14 @@ This fork exists because the original project has not been updated in over a yea
 - [modrinth](https://modrinth.com/mod/reden-reforged) still under review
 - [curseforge](https://www.curseforge.com/minecraft/mc-mods/reden-reforged)  
 ## Known issues
- - breaks when redstone uses moving entitys - mostly fixed
 
 ## Added features
 
  - removed telemetry
  - added better container support when undoing
- - added support for pressure plates and string updates  
-
+ - added support for pressure plates and string updates
+ - updated to latest version
+   
 ## Credits
 
 Original project: [zly2006/reden-is-what-we-made](https://github.com/zly2006/reden-is-what-we-made)  
