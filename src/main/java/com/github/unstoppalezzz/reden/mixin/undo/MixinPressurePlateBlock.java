@@ -26,6 +26,9 @@ public abstract class MixinPressurePlateBlock {
     @Shadow
     protected abstract int getSignalForState(BlockState state);
 
+    @Shadow
+    protected abstract int getSignalStrength(Level level, BlockPos pos);
+
     @Inject(method = "entityInside", at = @At("HEAD"))
 //? if >= 1.21.10 {
     private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean bl, CallbackInfo ci) {
@@ -35,9 +38,13 @@ public abstract class MixinPressurePlateBlock {
     /*private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, CallbackInfo ci) {
 *///?}
         if (entity instanceof ServerPlayer player) {
-            if (getSignalForState(state) == 0) {
+            boolean start = !level.isClientSide()
+                && getSignalForState(level.getBlockState(pos)) == 0
+                && getSignalStrength(level, pos) > 0;
+            if (start) {
                 UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.USE_BLOCK);
             }
+            reden$playerStarted.push(start);
             return;
         }
         long id = 0;
@@ -56,6 +63,9 @@ public abstract class MixinPressurePlateBlock {
     @Unique
     private static final ArrayDeque<Boolean> reden$pushed = new ArrayDeque<>();
 
+    @Unique
+    private static final ArrayDeque<Boolean> reden$playerStarted = new ArrayDeque<>();
+
     @Inject(method = "entityInside", at = @At("RETURN"))
 //? if >= 1.21.10 {
     private void afterEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean bl, CallbackInfo ci) {
@@ -65,7 +75,7 @@ public abstract class MixinPressurePlateBlock {
     /*private void afterEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, CallbackInfo ci) {
 *///?}
         if (entity instanceof ServerPlayer player) {
-            if (getSignalForState(state) == 0) {
+            if (!reden$playerStarted.isEmpty() && reden$playerStarted.pop()) {
                 UndoMixinHelper.playerStopRecording(player);
             }
             return;
