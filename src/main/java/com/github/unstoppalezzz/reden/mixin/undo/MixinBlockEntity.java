@@ -78,7 +78,13 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
 *///?}
             DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=" + cause + ", " + lastSavedNbt);
         }
+//? if =1.21.5 || =1.21.7 || =1.21.8 {
+        /*if (level instanceof ServerLevel serverLevel) {
+            lastSaveTime = serverLevel.getServer().getTickCount();
+        }
+*///?} else {
         lastSaveTime = com.github.unstoppalezzz.reden.utils.UtilsKt.getServer().getTickCount();
+//?}
     }
 
     @Unique
