@@ -27,6 +27,10 @@ This fork exists because the original project has not been updated in over a yea
 - [curseforge](https://www.curseforge.com/minecraft/mc-mods/reden-reforged)  
 ## Known issues
 
+## Planed features
+
+- Backporting to more older versions
+
 ## Added features
 
  - removed telemetry
