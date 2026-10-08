@@ -61,7 +61,11 @@ public class ChatHudMixin {
 
     //? if <26.1 {
     /*@ModifyArg(
+        //? if >=1.20.5 {
         method = "addMessageToDisplayQueue",
+        //?} else {
+        /^method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;ILnet/minecraft/client/GuiMessageTag;Z)V",
+        ^///?}
         at = @At(value = "INVOKE", target = "Ljava/util/List;add(ILjava/lang/Object;)V", ordinal = 0),
         index = 1
     )
@@ -72,7 +76,11 @@ public class ChatHudMixin {
     }
 
     @Redirect(
+        //? if >=1.20.5 {
         method = "addMessageToDisplayQueue",
+        //?} else {
+        /^method = "addMessage(Lnet/minecraft/network/chat/Component;Lnet/minecraft/network/chat/MessageSignature;ILnet/minecraft/client/GuiMessageTag;Z)V",
+        ^///?}
         at = @At(value = "INVOKE", target = "Ljava/util/List;add(ILjava/lang/Object;)V", ordinal = 0)
     )
     private void redirectAddVisibleMessage(List list, int index, Object element) {

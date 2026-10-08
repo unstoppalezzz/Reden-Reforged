@@ -19,7 +19,11 @@ object NbtSerializer : KSerializer<CompoundTag> {
 
     override fun deserialize(decoder: Decoder): CompoundTag = NbtIo.read(
         DataInputStream(ByteArrayInputStream(decoder.decodeSerializableValue(ByteArraySerializer()))),
+        //? if >=1.20.3 {
         NbtAccounter.create(1024 * 1024) // 1 MB
+        //?} else {
+        /*NbtAccounter(1024 * 1024) // 1 MB
+        *///?}
     ) as CompoundTag
 
     override fun serialize(encoder: Encoder, value: CompoundTag) {

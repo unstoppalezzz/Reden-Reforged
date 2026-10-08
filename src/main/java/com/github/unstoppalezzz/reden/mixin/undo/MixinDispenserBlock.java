@@ -22,7 +22,12 @@ public class MixinDispenserBlock {
     }
 
     @Inject(method = "dispenseFrom", at = @At("HEAD"))
+    //? if >=1.20.2 {
     private void reden$captureDispenserSnapshot(ServerLevel level, BlockState state, BlockPos pos, CallbackInfo ci) {
+    //?} else {
+    /*private void reden$captureDispenserSnapshot(ServerLevel level, BlockPos pos, CallbackInfo ci) {
+        BlockState state = level.getBlockState(pos);
+    *///?}
         UndoMixinHelper.captureDispenserSnapshot(level, pos, pos.relative(state.getValue(DispenserBlock.FACING)));
     }
 

@@ -4,10 +4,10 @@ import com.github.unstoppalezzz.reden.access.BlockEntityInterface;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.core.BlockPos;
+//? if >=1.20.5 {
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentMap;
-import net.minecraft.core.component.DataComponentType;
-import net.minecraft.core.component.DataComponents;
+//?}
 import net.minecraft.nbt.CompoundTag;
 //? if >= 1.21.6 {
 import net.minecraft.util.ProblemReporter;
@@ -31,8 +31,15 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     @Shadow @Nullable protected Level level;
     @Final @Shadow protected BlockPos worldPosition;
     @Shadow private BlockState blockState;
+    //? if >=1.20.5 {
     @Shadow private DataComponentMap components;
-    //? if < 1.21.6 {
+    //?} else {
+    /*// data components don't exist before 1.20.5
+    @Unique private final Object components = null;
+    *///?}
+    //? if < 1.20.5 {
+    /*@Shadow public abstract CompoundTag saveWithId();
+    *///?} elif < 1.21.6 {
     /*@Shadow public abstract CompoundTag saveWithId(HolderLookup.Provider provider);
     *///?} else {
     @Shadow public abstract void saveWithId(net.minecraft.world.level.storage.ValueOutput par1);
@@ -40,7 +47,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
 
     @Unique CompoundTag lastSavedNbt = null;
     @Unique int lastSaveTime = 0;
-    @Unique DataComponentMap lastComponents = null;
+    @Unique Object lastComponents = null;
 
     @Override
     public void saveLastNbt$reden() {
@@ -73,8 +80,10 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
             /*TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
             this.saveWithId(vo);
             lastSavedNbt = vo.buildResult();
-*///?} else {
+*///?} elif >= 1.20.5 {
             /*lastSavedNbt = this.saveWithId(level.registryAccess());
+*///?} else {
+            /*lastSavedNbt = this.saveWithId();
 *///?}
             DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=" + cause + ", " + lastSavedNbt);
         }
@@ -88,7 +97,7 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     }
 
     @Unique
-    private boolean isComponentsValid(DataComponentMap lastComponents) {
+    private boolean isComponentsValid(Object lastComponents) {
         return false;
     }
 
@@ -137,7 +146,11 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     }
 
     @Inject(
+            //? if >=1.20.5 {
             method = "loadWithComponents",
+            //?} else {
+            /*method = "load",
+            *///?}
             at = @At("TAIL")
     )
     private void onReadNbt(CallbackInfo ci) {
@@ -161,8 +174,10 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 /*TagValueOutput vo = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
                 this.saveWithId(vo);
                 lastSavedNbt = vo.buildResult();
-*///?} else {
+*///?} elif >= 1.20.5 {
                 /*lastSavedNbt = this.saveWithId(level.registryAccess());
+*///?} else {
+                /*lastSavedNbt = this.saveWithId();
 *///?}
                 DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
             }

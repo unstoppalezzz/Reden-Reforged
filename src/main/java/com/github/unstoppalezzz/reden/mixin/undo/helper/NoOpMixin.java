@@ -10,8 +10,10 @@ import org.spongepowered.asm.mixin.Mixin;
         net.minecraft.server.network.ServerGamePacketListenerImpl.class,
         net.minecraft.world.entity.item.FallingBlockEntity.class,
         net.minecraft.world.item.BlockItem.class,
+        //? if >=1.20.5 {
         net.minecraft.world.item.component.CustomData.class,
         net.minecraft.world.level.block.CrafterBlock.class,
+        //?}
         net.minecraft.world.level.block.DecoratedPotBlock.class,
         net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity.class,
         net.minecraft.world.level.block.entity.BaseContainerBlockEntity.class,
@@ -19,6 +21,7 @@ import org.spongepowered.asm.mixin.Mixin;
         net.minecraft.world.level.block.entity.BrushableBlockEntity.class,
         net.minecraft.world.level.block.entity.CampfireBlockEntity.class,
         net.minecraft.world.level.block.entity.CommandBlockEntity.class,
+        //? if >=1.20.5
         net.minecraft.world.level.block.entity.CrafterBlockEntity.class,
         net.minecraft.world.level.block.entity.JukeboxBlockEntity.class,
         net.minecraft.world.level.block.entity.LecternBlockEntity.class,
@@ -29,6 +32,7 @@ import org.spongepowered.asm.mixin.Mixin;
         net.minecraft.world.level.block.entity.SpawnerBlockEntity.class,
         net.minecraft.world.level.block.entity.StructureBlockEntity.class,
         net.minecraft.world.level.block.entity.TheEndGatewayBlockEntity.class,
+        //? if >=1.20.5
         net.minecraft.world.level.block.entity.TrialSpawnerBlockEntity.class,
         net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.class
     },

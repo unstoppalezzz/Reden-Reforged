@@ -141,12 +141,20 @@ public abstract class QuickMenuWidget implements GuiEventListener {
         return false;
     }
 
-    //? if <26.1
+    //? if >=1.20.2 <26.1
     /*@Override*/
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
         remove();
         return false;
     }
+
+    //? if <1.20.2 {
+    /*@Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        remove();
+        return false;
+    }
+    *///?}
 
     //? if <26.1
     /*@Override*/

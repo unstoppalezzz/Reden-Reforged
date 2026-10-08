@@ -21,15 +21,23 @@ fun configureKeyCallbacks(mc: Minecraft) {
         if (mc.gameMode?.playerMode?.isCreative != true)
             return@callback false
         else
-            ClientPlayNetworking.send(Undo(0))
+            sendUndo(Undo(0))
         true
     }
     REDO_KEY.callback {
         if (mc.gameMode?.playerMode?.isCreative == true) {
-            ClientPlayNetworking.send(Undo(1))
+            sendUndo(Undo(1))
             true
         } else false
     }
+}
+
+private fun sendUndo(packet: Undo) {
+    //? if >=1.20.5 {
+    ClientPlayNetworking.send(packet)
+    //?} else {
+    /*ClientPlayNetworking.send(Undo.ID, Undo.encode(packet))
+    *///?}
 }
 
 private fun ConfigHotkey.callback(action: () -> Boolean) {

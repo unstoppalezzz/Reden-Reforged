@@ -34,7 +34,11 @@ import kotlin.math.min
 
 lateinit var server: MinecraftServer
 
+//? if >=1.20.3 {
 val gameFrozen: Boolean get() = server.tickRateManager().isFrozen
+//?} else {
+/*val gameFrozen: Boolean get() = false
+*///?}
 
 val isOnServerThread: Boolean get() = ::server.isInitialized && server.isSameThread
 

@@ -27,7 +27,11 @@ public class MixinPlayerMode {
     @Shadow
     protected ServerLevel level;
 
+    //? if >=1.20.2 {
     @Inject(method = "destroyBlock", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;playerWillDestroy(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/entity/player/Player;)Lnet/minecraft/world/level/block/state/BlockState;"))
+    //?} else {
+    /*@Inject(method = "destroyBlock", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/Block;playerWillDestroy(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/entity/player/Player;)V"))
+    *///?}
     private void onDestroy(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.BREAK_BLOCK);
     }

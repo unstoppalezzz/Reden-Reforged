@@ -17,7 +17,6 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecords
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecordsMap
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.core.BlockPos
-import net.minecraft.core.component.DataComponentMap
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer

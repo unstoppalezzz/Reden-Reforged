@@ -28,8 +28,15 @@ import kotlin.io.path.exists
 
 val GSON = Gson()
 
+private fun configDirectory() =
+    //? if >=1.21 {
+    FileUtils.getConfigDirectoryAsPath()
+    //?} else {
+    /*FileUtils.getConfigDirectory().toPath()
+    *///?}
+
 fun loadMalilibSettings() {
-    val path = FileUtils.getConfigDirectoryAsPath().resolve("reden/config.json")
+    val path = configDirectory().resolve("reden/config.json")
         .createParentDirectories()
     if (!path.exists()) {
         return
@@ -43,7 +50,7 @@ fun saveMalilibOptions() {
     val jo = JsonObject()
     ConfigUtils.writeConfigBase(jo, Reden.MOD_NAME, getAllOptions())
     Files.writeString(
-        FileUtils.getConfigDirectoryAsPath().resolve("reden/config.json")
+        configDirectory().resolve("reden/config.json")
             .createParentDirectories(),
         GSON.toJson(jo)
     )
@@ -60,6 +67,7 @@ class RedenClient : ClientModInitializer {
         }
         *///?}
         registerClientPackets()
+        //? if >=1.21 {
         fi.dy.masa.malilib.registry.Registry.CONFIG_SCREEN.registerConfigScreenFactory(
             fi.dy.masa.malilib.util.data.ModInfo(
                 Reden.MOD_ID,
@@ -67,6 +75,7 @@ class RedenClient : ClientModInitializer {
                 ::GuiConfigs
             )
         )
+        //?}
         InitializationHandler.getInstance().registerInitializationHandler {
             ConfigManager.getInstance().registerConfigHandler(Reden.MOD_ID, object : IConfigHandler {
                 override fun load() {

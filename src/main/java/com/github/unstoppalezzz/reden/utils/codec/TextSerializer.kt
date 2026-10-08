@@ -10,6 +10,7 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import net.minecraft.network.chat.Component
+//? if >=1.20.3
 import net.minecraft.network.chat.ComponentSerialization
 import net.minecraft.network.chat.MutableComponent
 
@@ -17,12 +18,21 @@ object TextSerializer : KSerializer<MutableComponent> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("minecraft.Text", PrimitiveKind.STRING)
     val GSON = Gson()
 
+    //? if >=1.20.3 {
     fun strToText(str: String): MutableComponent {
         return ComponentSerialization.CODEC.parse(JsonOps.INSTANCE, GSON.fromJson(str, JsonElement::class.java)).orThrow.copy()
     }
     fun textToStr(text: Component): String {
         return ComponentSerialization.CODEC.encodeStart(JsonOps.INSTANCE, text).orThrow.toString()
     }
+    //?} else {
+    /*fun strToText(str: String): MutableComponent {
+        return Component.Serializer.fromJson(str)!!
+    }
+    fun textToStr(text: Component): String {
+        return Component.Serializer.toJson(text)
+    }
+    *///?}
 
     override fun deserialize(decoder: Decoder): MutableComponent = strToText(decoder.decodeString())
 

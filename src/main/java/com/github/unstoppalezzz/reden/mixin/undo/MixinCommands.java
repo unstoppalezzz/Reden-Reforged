@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Commands.class)
 public class MixinCommands {
@@ -31,11 +32,20 @@ public class MixinCommands {
             method = "performCommand",
             at = @At(
                     value = "INVOKE",
+                    //? if >=1.20.3 {
                     target = "Lnet/minecraft/commands/Commands;executeCommandInContext(Lnet/minecraft/commands/CommandSourceStack;Ljava/util/function/Consumer;)V",
+                    //?} else {
+                    /*target = "Lcom/mojang/brigadier/CommandDispatcher;execute(Lcom/mojang/brigadier/ParseResults;)I",
+                    *///?}
                     shift = At.Shift.BEFORE
             )
     )
+    // performCommand returned int before 1.20.3
+    //? if >=1.20.3 {
     private void onExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfo ci) {
+    //?} else {
+    /*private void onExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfoReturnable<Integer> ci) {
+    *///?}
         if (reden$isTickCommand(command)) return;
         if (parseResults.getContext().getSource().getEntity() instanceof ServerPlayer player) {
             UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.COMMAND);
@@ -46,11 +56,20 @@ public class MixinCommands {
             method = "performCommand",
             at = @At(
                     value = "INVOKE",
+                    //? if >=1.20.3 {
                     target = "Lnet/minecraft/commands/Commands;executeCommandInContext(Lnet/minecraft/commands/CommandSourceStack;Ljava/util/function/Consumer;)V",
+                    //?} else {
+                    /*target = "Lcom/mojang/brigadier/CommandDispatcher;execute(Lcom/mojang/brigadier/ParseResults;)I",
+                    *///?}
                     shift = At.Shift.AFTER
             )
     )
+    // performCommand returned int before 1.20.3
+    //? if >=1.20.3 {
     private void afterExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfo ci) {
+    //?} else {
+    /*private void afterExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfoReturnable<Integer> ci) {
+    *///?}
         if (reden$isTickCommand(command)) return;
         if (parseResults.getContext().getSource().getEntity() instanceof ServerPlayer player) {
             UndoMixinHelper.playerStopRecording(player);

@@ -12,14 +12,17 @@ import com.github.unstoppalezzz.reden.utils.multiver.*
 import com.github.unstoppalezzz.reden.utils.server
 import com.github.unstoppalezzz.reden.utils.setBlockNoPP
 import kotlinx.serialization.Serializable
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking
 import net.minecraft.core.BlockPos
+import net.minecraft.nbt.CompoundTag
+//? if >=1.20.5 {
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry
 import net.minecraft.core.component.DataComponentMap
 import net.minecraft.core.component.DataComponentPatch
-import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
+//?}
 import net.minecraft.server.level.ServerLevel
+import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Mob
 import net.minecraft.world.entity.item.PrimedTnt
 
@@ -203,9 +206,11 @@ class Undo(
 
                     when (beData) {
                         is CompoundTag -> {
-                            //? if <= 1.21.5 {
+                            //? if < 1.20.5 {
+                            /*be.load(beData)
+                            *///?} elif <= 1.21.5 {
                             /*be.loadWithComponents(beData, world.registryAccess())
-                            *///?} elif >= 1.21.6 {
+                            *///?} else {
                             be.loadWithComponents(
                                 net.minecraft.world.level.storage.TagValueInput.create(
                                     net.minecraft.util.ProblemReporter.DISCARDING,
@@ -216,6 +221,7 @@ class Undo(
                             //?}
                         }
 
+                        //? if >=1.20.5 {
                         is DataComponentMap -> {
                             val prototype = entry.state.block.asItem().components()
                             be.applyComponents(prototype, DataComponentPatch.builder().apply {
@@ -224,6 +230,7 @@ class Undo(
                                 }
                             }.build())
                         }
+                        //?}
 
                         else -> {
                             throw IllegalArgumentException("Unsupported block entity data type: ${beData::class.java}")
@@ -275,7 +282,10 @@ class Undo(
                         val entry = it.value
                         if (entry.nbt.size() == 0) return@forEach
                         debugLogger("undo entity ${it.key} spawning")
-                        val newEntity = entry.entity!!.spawn(world, { newEntity ->
+                        val newEntity = entry.entity!!.spawn(world,
+//? if < 1.20.5
+                        /*null as CompoundTag?,*/
+                        { newEntity ->
                             newEntity.uuid = it.key
                         },
 //? if <= 1.21.1 {
@@ -380,6 +390,7 @@ class Undo(
             return null
         }
         fun register() {
+            //? if >=1.20.5 {
             //? if >=26.1 {
             PayloadTypeRegistry.serverboundPlay().register(ID, CODEC)
             PayloadTypeRegistry.clientboundPlay().register(ID, CODEC)
@@ -389,94 +400,107 @@ class Undo(
             PayloadTypeRegistry.playS2C().register(ID, CODEC)
             *///?}
             ServerPlayNetworking.registerGlobalReceiver(ID) { packet, context ->
-                val view = context.player().data()
                 //? if >=26.1 {
-                fun sendStatus(status: Int) = context.responseSender().sendPacket(Undo(status))
+                handle(packet, context.player()) { status -> context.responseSender().sendPacket(Undo(status)) }
                 //?} else {
-                /*fun sendStatus(status: Int) {
-                    val msg = when (status) {
-                        0 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.rollback_success"))
-                        1 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.restore_success"))
-                        2 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_blocks_info"))
-                        16 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_permission"))
-                        32 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.not_recording"))
-                        64 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.busy"))
-                        65536 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.unknown_error"))
-                        else -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.unknown_status"))
-                    }
-                    context.player().sendSystemMessage(msg)
-                }
+                /*handle(packet, context.player()) { status -> sendStatusMessage(context.player(), status) }
                 *///?}
-                if (!view.canRecord) {
-                    sendStatus(16)
-                    return@registerGlobalReceiver
-                }
-                debugLogger(
-                    "[undo] request status=${packet.status}: undo=${view.undo.map { it.id }} redo=${view.redo.map { it.id }} " +
-                        "isRecording=${view.isRecording} active=${UndoMixinHelper.recording?.id} " +
-                        "liveRecords=${UndoMixinHelper.undoRecordsMap.keys}"
-                )
-                UndoMixinHelper.playerStopRecording(context.player())
-                if (UndoMixinHelper.recording != null) {
-                    Reden.LOGGER.error("Undo when a record is still active, id=" + UndoMixinHelper.recording?.id)
-                    // 不取消跟踪会导致undo的更改也被记录，边读边写异常
-                    UndoMixinHelper.undoRecords.clear()
-                }
-                when (packet.status) {
-                    0 -> view.undo.lastValid()?.let { undoRecord ->
-                        view.undo.removeLast()
-                        UndoMixinHelper.removeRecord(undoRecord.id)
-                        server.execute {
-                            view.redo.add(
-                                PlayerData.RedoRecord(
-                                    id = undoRecord.id,
-                                    lastChangedTick = -1,
-                                    undoRecord = undoRecord
-                                ).apply {
-                                    data.putAll(undoRecord.data.keys.associateWith { posLong ->
-                                        this.fromWorld( // add entity info to this redo record
-                                            //? if <= 1.21.5
-                                            /*context.player().serverLevel(),*/
-                                            //? if >= 1.21.6
-                                            context.player().level(),
-                                            BlockPos.of(posLong),
-                                            true
-                                        )
-                                    })
-                                    entities.clear()
-                                }
-                            )
-                            operate(
-                                //? if <= 1.21.5
-                                /*context.player().serverLevel(),*/
-                                //? if >= 1.21.6
-                                context.player().level(),
-                                undoRecord,
-                                view.redo.last()
-                            )
-                            sendStatus(0)
-                        }
-                    } ?: sendStatus(2)
+            }
+            //?} else {
+            /*ServerPlayNetworking.registerGlobalReceiver(ID) { server, player, _, buf, _ ->
+                val packet = decode(buf)
+                server.execute { handle(packet, player) { status -> sendStatusMessage(player, status) } }
+            }
+            *///?}
+        }
 
-                    1 -> view.redo.lastValid()?.let {
-                        view.redo.removeLast()
-                        server.execute {
-                            operate(
-                                //? if <= 1.21.5
-                                /*context.player().serverLevel(),*/
-                                //? if >= 1.21.6
-                                context.player().level(),
-                                it,
-                                null,
-                                isUndo = false
-                            )
-                            view.undo.add(it.undoRecord)
-                            sendStatus(1)
-                        }
-                    } ?: sendStatus(2)
+        //? if <26.1 {
+        /*private fun sendStatusMessage(player: ServerPlayer, status: Int) {
+            val msg = when (status) {
+                0 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.rollback_success"))
+                1 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.restore_success"))
+                2 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_blocks_info"))
+                16 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_permission"))
+                32 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.not_recording"))
+                64 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.busy"))
+                65536 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.unknown_error"))
+                else -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.unknown_status"))
+            }
+            player.sendSystemMessage(msg)
+        }
+        *///?}
 
-                    else -> sendStatus(65536)
-                }
+        private fun handle(packet: Undo, player: ServerPlayer, sendStatus: (Int) -> Unit) {
+            val view = player.data()
+            if (!view.canRecord) {
+                sendStatus(16)
+                return
+            }
+            debugLogger(
+                "[undo] request status=${packet.status}: undo=${view.undo.map { it.id }} redo=${view.redo.map { it.id }} " +
+                    "isRecording=${view.isRecording} active=${UndoMixinHelper.recording?.id} " +
+                    "liveRecords=${UndoMixinHelper.undoRecordsMap.keys}"
+            )
+            UndoMixinHelper.playerStopRecording(player)
+            if (UndoMixinHelper.recording != null) {
+                Reden.LOGGER.error("Undo when a record is still active, id=" + UndoMixinHelper.recording?.id)
+                // 不取消跟踪会导致undo的更改也被记录，边读边写异常
+                UndoMixinHelper.undoRecords.clear()
+            }
+            when (packet.status) {
+                0 -> view.undo.lastValid()?.let { undoRecord ->
+                    view.undo.removeLast()
+                    UndoMixinHelper.removeRecord(undoRecord.id)
+                    server.execute {
+                        view.redo.add(
+                            PlayerData.RedoRecord(
+                                id = undoRecord.id,
+                                lastChangedTick = -1,
+                                undoRecord = undoRecord
+                            ).apply {
+                                data.putAll(undoRecord.data.keys.associateWith { posLong ->
+                                    this.fromWorld( // add entity info to this redo record
+                                        //? if <= 1.21.5
+                                        /*player.serverLevel(),*/
+                                        //? if >= 1.21.6
+                                        player.level(),
+                                        BlockPos.of(posLong),
+                                        true
+                                    )
+                                })
+                                entities.clear()
+                            }
+                        )
+                        operate(
+                            //? if <= 1.21.5
+                            /*player.serverLevel(),*/
+                            //? if >= 1.21.6
+                            player.level(),
+                            undoRecord,
+                            view.redo.last()
+                        )
+                        sendStatus(0)
+                    }
+                } ?: sendStatus(2)
+
+                1 -> view.redo.lastValid()?.let {
+                    view.redo.removeLast()
+                    server.execute {
+                        operate(
+                            //? if <= 1.21.5
+                            /*player.serverLevel(),*/
+                            //? if >= 1.21.6
+                            player.level(),
+                            it,
+                            null,
+                            isUndo = false
+                        )
+                        view.undo.add(it.undoRecord)
+                        sendStatus(1)
+                    }
+                } ?: sendStatus(2)
+
+                else -> sendStatus(65536)
             }
         }
     }
