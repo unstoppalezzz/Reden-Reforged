@@ -37,7 +37,8 @@ This fork exists because the original project has not been updated in over a yea
  - added better container support when undoing
  - added support for pressure plates and string updates
  - updated to latest version
-   
+ - survival undo
+ 
 ## Credits
 
 Original project: [zly2006/reden-is-what-we-made](https://github.com/zly2006/reden-is-what-we-made)  

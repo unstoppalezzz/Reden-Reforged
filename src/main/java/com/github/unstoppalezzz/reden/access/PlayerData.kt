@@ -1,6 +1,7 @@
 package com.github.unstoppalezzz.reden.access
 
 import com.github.unstoppalezzz.reden.Reden
+import com.github.unstoppalezzz.reden.undo.SurvivalUndo
 import com.github.unstoppalezzz.reden.utils.multiver.Text
 import net.minecraft.commands.arguments.selector.EntitySelector
 import net.minecraft.core.BlockPos
@@ -10,6 +11,7 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.item.PrimedTnt
+import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.entity.BlockEntityType
 import net.minecraft.world.level.block.state.BlockState
@@ -31,7 +33,8 @@ class PlayerData(
     }
 
     var behalfBy: ServerPlayer? = null
-    val canRecord: Boolean get() = player.isCreative
+    var creativeOnly: Boolean = true
+    val canRecord: Boolean get() = player.isCreative || (!creativeOnly && SurvivalUndo.hasPermission(player))
     val undo: MutableList<UndoRecord> = mutableListOf()
     val redo: MutableList<RedoRecord> = mutableListOf()
     var isRecording: Boolean = false
@@ -124,6 +127,7 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
         val cause: Cause = Cause.UNKNOWN
     ) : UndoRedoRecord(id, lastChangedTick, entities, data) {
         var notified = false
+        var survival: SurvivalUndo.Info? = null
 
         enum class Cause(val message: Component) {
             BREAK_BLOCK(Text.translatable("reden.feature.undo.cause.break_block")),
@@ -146,6 +150,9 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
         data: MutableMap<Long, Entry> = mutableMapOf(),
         val undoRecord: UndoRecord
     ) : UndoRedoRecord(id, lastChangedTick, entities, data) {
+        var survivalLedger: SurvivalUndo.ItemDelta? = null
+        val containersBaseline: MutableMap<Long, List<ItemStack>> = mutableMapOf()
+
         override fun getMemorySize() = super.getMemorySize() + undoRecord.getMemorySize()
     }
 

@@ -8,7 +8,9 @@ import com.github.unstoppalezzz.reden.malilib.getAllOptions
 /*import com.github.unstoppalezzz.reden.network.Undo*/
 import com.github.unstoppalezzz.reden.network.registerClientPackets
 import com.github.unstoppalezzz.reden.utils.checkMalilib
+import com.github.unstoppalezzz.reden.malilib.CREATIVE_ONLY
 import com.github.unstoppalezzz.reden.malilib.DEBUG_LOGGING
+import com.github.unstoppalezzz.reden.malilib.syncUndoSettings
 import com.github.unstoppalezzz.reden.utils.setDebug
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -21,6 +23,8 @@ import fi.dy.masa.malilib.hotkeys.IKeybindManager
 import fi.dy.masa.malilib.hotkeys.IKeybindProvider
 import fi.dy.masa.malilib.util.FileUtils
 import net.fabricmc.api.ClientModInitializer
+//? if >=1.20.5
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents
 import net.minecraft.client.Minecraft
 import java.nio.file.Files
 import kotlin.io.path.createParentDirectories
@@ -67,6 +71,9 @@ class RedenClient : ClientModInitializer {
         }
         *///?}
         registerClientPackets()
+        //? if >=1.20.5 {
+        ClientPlayConnectionEvents.JOIN.register { _, _, _ -> syncUndoSettings() }
+        //?}
         //? if >=1.21 {
         fi.dy.masa.malilib.registry.Registry.CONFIG_SCREEN.registerConfigScreenFactory(
             fi.dy.masa.malilib.util.data.ModInfo(
@@ -88,6 +95,7 @@ class RedenClient : ClientModInitializer {
             })
             loadMalilibSettings()
             DEBUG_LOGGING.setValueChangeCallback { setDebug(it.booleanValue) }
+            CREATIVE_ONLY.setValueChangeCallback { syncUndoSettings() }
             val mc = Minecraft.getInstance()
             configureKeyCallbacks(mc)
 

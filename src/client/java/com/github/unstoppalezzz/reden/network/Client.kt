@@ -1,6 +1,8 @@
 package com.github.unstoppalezzz.reden.network
 
 import com.github.unstoppalezzz.reden.Reden
+//? if <1.20.5
+/*import com.github.unstoppalezzz.reden.malilib.syncUndoSettings*/
 import com.github.unstoppalezzz.reden.utils.multiver.Text
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
 import net.minecraft.network.chat.Component
@@ -23,6 +25,8 @@ private fun undoStatusMessage(status: Int) = when (status) {
     1     -> translateMessage("undo", "restore_success")
     2     -> translateMessage("undo", "no_blocks_info")
     16    -> translateMessage("undo", "no_permission")
+    Undo.STATUS_CREATIVE_RECORD -> translateMessage("undo", "creative_record")
+    Undo.STATUS_ENTITY_GONE     -> translateMessage("undo", "entity_gone")
     32    -> translateMessage("undo", "not_recording")
     64    -> translateMessage("undo", "busy")
     65536 -> translateMessage("undo", "unknown_error")
@@ -39,9 +43,12 @@ private fun onHello(packet: HelloS2CPacket) {
                 context.player().sendSystemMessage(undoStatusMessage(packet.status))
             }
             //?} else {
-            /*"undo" -> ClientPlayNetworking.registerGlobalReceiver(Undo.ID) { client, _, buf, _ ->
-                val packet = Undo.decode(buf)
-                client.execute { client.player?.sendSystemMessage(undoStatusMessage(packet.status)) }
+            /*"undo" -> {
+                ClientPlayNetworking.registerGlobalReceiver(Undo.ID) { client, _, buf, _ ->
+                    val packet = Undo.decode(buf)
+                    client.execute { client.player?.sendSystemMessage(undoStatusMessage(packet.status)) }
+                }
+                syncUndoSettings()
             }
             *///?}
         }

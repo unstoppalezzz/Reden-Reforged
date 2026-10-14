@@ -48,6 +48,11 @@ public class MixinPlayerMode {
         )
     )
     private void afterDestroy(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+        UndoMixinHelper.playerStopRecordingUnlessSurvival(player);
+    }
+
+    @Inject(method = "destroyBlock", at = @At("RETURN"))
+    private void afterDestroyReturn(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         UndoMixinHelper.playerStopRecording(player);
     }
 
@@ -75,6 +80,11 @@ public class MixinPlayerMode {
     @Inject(method = "useItem", at = @At(value = "INVOKE", shift = At.Shift.AFTER, target = "Lnet/minecraft/world/item/ItemStack;use(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/InteractionHand;)Lnet/minecraft/world/InteractionResult;"))
     //?}
     private void afterUseItem(ServerPlayer serverPlayer, Level level, ItemStack itemStack, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
+        UndoMixinHelper.playerStopRecordingUnlessSurvival(player);
+    }
+
+    @Inject(method = "useItem", at = @At("RETURN"))
+    private void afterUseItemReturn(ServerPlayer serverPlayer, Level level, ItemStack itemStack, InteractionHand interactionHand, CallbackInfoReturnable<InteractionResult> cir) {
         UndoMixinHelper.playerStopRecording(player);
     }
 }

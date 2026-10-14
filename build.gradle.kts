@@ -110,7 +110,7 @@ if (stonecutter.eval(mcVersion, ">=1.21.9 <26.1")) {
     }
 }
 
-val java = if (stonecutter.eval(mcVersion, ">=26.1")) 25 else if (stonecutter.eval(mcVersion, ">=1.20.6")) 21 else 17
+val java = if (stonecutter.eval(mcVersion, ">=26.1")) 25 else if (stonecutter.eval(mcVersion, ">=1.20.5")) 21 else 17
 java {
     withSourcesJar()
     targetCompatibility = JavaVersion.toVersion(java)

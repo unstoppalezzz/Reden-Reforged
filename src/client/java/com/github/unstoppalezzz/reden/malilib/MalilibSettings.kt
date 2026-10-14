@@ -23,17 +23,14 @@ private fun <T : ConfigBase<*>> T.debug() = apply { (DEBUG_TAB.add(this)) }
 @JvmField val NO_TIME_OUT = ConfigBoolean("noTimeOut", false, "reden.config.noTimeOut.comment").generic()
 @JvmField val UNDO_KEY = ConfigHotkey("undoKey", "LEFT_CONTROL,Z", "reden.config.undoKey.comment").generic().hotkey()
 @JvmField val REDO_KEY = ConfigHotkey("redoKey", "LEFT_CONTROL,Y", "reden.config.redoKey.comment").generic().hotkey()
+@JvmField val CREATIVE_ONLY = ConfigBoolean("creativeOnly", true, "reden.config.creativeOnly.comment").generic()
 //? if >=1.21 {
 @JvmField val CHAT_RIGHT_CLICK_MENU = ConfigBoolean("chatRightClickMenu", true, "reden.config.chatRightClickMenu.comment", "reden.config.chatRightClickMenu", "reden.config.chatRightClickMenu").generic()
 //?} else {
 /*@JvmField val CHAT_RIGHT_CLICK_MENU = ConfigBoolean("chatRightClickMenu", true, "reden.config.chatRightClickMenu.comment", "reden.config.chatRightClickMenu").generic()
 *///?}
 // Debug
-//? if >=1.21 {
-@JvmField val DEBUG_LOGGING = ConfigBoolean("debugLogging", false).debug()
-//?} else {
-/*@JvmField val DEBUG_LOGGING = ConfigBoolean("debugLogging", false, "").debug()
-*///?}
+@JvmField val DEBUG_LOGGING = ConfigBoolean("debugLogging", false, "reden.config.debugLogging.comment").debug()
 // @formatter:on
 
 fun getAllOptions() = GENERIC_TAB + DEBUG_TAB

@@ -18,14 +18,21 @@ object TextSerializer : KSerializer<MutableComponent> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("minecraft.Text", PrimitiveKind.STRING)
     val GSON = Gson()
 
-    //? if >=1.20.3 {
+    //? if >=1.20.5 {
     fun strToText(str: String): MutableComponent {
         return ComponentSerialization.CODEC.parse(JsonOps.INSTANCE, GSON.fromJson(str, JsonElement::class.java)).orThrow.copy()
     }
     fun textToStr(text: Component): String {
         return ComponentSerialization.CODEC.encodeStart(JsonOps.INSTANCE, text).orThrow.toString()
     }
-    //?} else {
+    //?} elif >=1.20.3 {
+    /*fun strToText(str: String): MutableComponent {
+        return ComponentSerialization.CODEC.parse(JsonOps.INSTANCE, GSON.fromJson(str, JsonElement::class.java)).getOrThrow(false) {}.copy()
+    }
+    fun textToStr(text: Component): String {
+        return ComponentSerialization.CODEC.encodeStart(JsonOps.INSTANCE, text).getOrThrow(false) {}.toString()
+    }
+    *///?} else {
     /*fun strToText(str: String): MutableComponent {
         return Component.Serializer.fromJson(str)!!
     }

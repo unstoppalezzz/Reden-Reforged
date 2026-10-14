@@ -7,6 +7,7 @@ import com.github.unstoppalezzz.reden.access.PlayerData
 import com.github.unstoppalezzz.reden.access.PlayerData.Companion.data
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.modified
+import com.github.unstoppalezzz.reden.undo.SurvivalUndo
 import com.github.unstoppalezzz.reden.utils.debugLogger
 import com.github.unstoppalezzz.reden.utils.multiver.*
 import com.github.unstoppalezzz.reden.utils.server
@@ -24,7 +25,9 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Mob
+import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.item.PrimedTnt
+import net.minecraft.world.level.block.entity.BlockEntity
 
 @Serializable
 class Undo(
@@ -33,6 +36,11 @@ class Undo(
     override fun type() = ID
 
     companion object : PacketCodecHelper<Undo> by PacketCodec(Reden.identifier("undo")) {
+        const val STATUS_CREATIVE_RECORD = 17
+        const val STATUS_ENTITY_GONE = 18
+        const val REQUEST_CREATIVE_ONLY = 128
+        const val REQUEST_ALLOW_SURVIVAL = 129
+
         private fun isUpdateSensitive(state: net.minecraft.world.level.block.state.BlockState): Boolean {
             val block = state.block
             return block is net.minecraft.world.level.block.TripWireBlock ||
@@ -119,7 +127,54 @@ class Undo(
             }
         }
 
-        private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true) {
+        private fun isStale(world: ServerLevel, pos: BlockPos, entry: PlayerData.Entry, isUndo: Boolean): Boolean {
+            val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
+            return sec.getModifyTime(pos) < entry.time && isUndo
+        }
+
+        internal fun willRestore(world: ServerLevel, pos: BlockPos, entry: PlayerData.Entry, isUndo: Boolean) =
+            !isStale(world, pos, entry, isUndo) &&
+                entry.state.block !is net.minecraft.world.level.block.piston.MovingPistonBlock
+
+        internal fun loadBlockEntity(world: ServerLevel, pos: BlockPos, entry: PlayerData.Entry): BlockEntity? {
+            val be = entry.beType?.create(pos, entry.state) ?: return null
+            when (val beData = entry.beData) {
+                null -> {}
+                is CompoundTag -> {
+                    //? if < 1.20.5 {
+                    /*be.load(beData)
+                    *///?} elif <= 1.21.5 {
+                    /*be.loadWithComponents(beData, world.registryAccess())
+                    *///?} else {
+                    be.loadWithComponents(
+                        net.minecraft.world.level.storage.TagValueInput.create(
+                            net.minecraft.util.ProblemReporter.DISCARDING,
+                            world.registryAccess(),
+                            beData
+                        )
+                    )
+                    //?}
+                }
+
+                //? if >=1.20.5 {
+                is DataComponentMap -> {
+                    val prototype = entry.state.block.asItem().components()
+                    be.applyComponents(prototype, DataComponentPatch.builder().apply {
+                        beData.forEach { typedDataComponent ->
+                            this.set(typedDataComponent)
+                        }
+                    }.build())
+                }
+                //?}
+
+                else -> {
+                    throw IllegalArgumentException("Unsupported block entity data type: ${beData::class.java}")
+                }
+            }
+            return be
+        }
+
+        private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true, survival: Boolean = false) {
             val restoredPositions = mutableListOf<BlockPos>()
             val skippedStale = mutableListOf<BlockPos>()
             val skippedMoving = mutableListOf<BlockPos>()
@@ -132,7 +187,7 @@ class Undo(
                 val pos = BlockPos.of(posLong)
                 val currentState = world.getBlockState(pos)
                 val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
-                if (sec.getModifyTime(pos) < entry.time && isUndo) {
+                if (isStale(world, pos, entry, isUndo)) {
                     skippedStale += pos
                     debugLogger(
                         "[undo] skip STALE ${pos.toShortString()}: modifyTime=${sec.getModifyTime(pos)} < entryTime=${entry.time}, " +
@@ -192,50 +247,7 @@ class Undo(
                         return@let
                     }
 
-                    val be = beType.create(pos, entry.state)
-                    if (be == null) {
-                        return@let
-                    }
-
-                    val beData = entry.beData
-                    if (beData == null) {
-                        world.setBlockEntity(be)
-                        (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
-                        return@let
-                    }
-
-                    when (beData) {
-                        is CompoundTag -> {
-                            //? if < 1.20.5 {
-                            /*be.load(beData)
-                            *///?} elif <= 1.21.5 {
-                            /*be.loadWithComponents(beData, world.registryAccess())
-                            *///?} else {
-                            be.loadWithComponents(
-                                net.minecraft.world.level.storage.TagValueInput.create(
-                                    net.minecraft.util.ProblemReporter.DISCARDING,
-                                    world.registryAccess(),
-                                    beData
-                                )
-                            )
-                            //?}
-                        }
-
-                        //? if >=1.20.5 {
-                        is DataComponentMap -> {
-                            val prototype = entry.state.block.asItem().components()
-                            be.applyComponents(prototype, DataComponentPatch.builder().apply {
-                                beData.forEach { typedDataComponent ->
-                                    this.set(typedDataComponent)
-                                }
-                            }.build())
-                        }
-                        //?}
-
-                        else -> {
-                            throw IllegalArgumentException("Unsupported block entity data type: ${beData::class.java}")
-                        }
-                    }
+                    val be = loadBlockEntity(world, pos, entry) ?: return@let
                     world.setBlockEntity(be)
                     (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
                 }
@@ -277,6 +289,12 @@ class Undo(
                 ) {
                     rideRelations += Triple(entity, entity.vehicle, entity.passengers.toList())
                 }
+                val looseDrop = survival && isUndo && it.value != PlayerData.NotExistEntityEntry &&
+                    SurvivalUndo.isLooseDrop(it.value.entity)
+                if (looseDrop) {
+                    debugLogger("undo entity ${it.key} is a loose drop, skipping in survival")
+                    return@forEach
+                }
                 if (entity == null) {
                     if (it.value != PlayerData.NotExistEntityEntry) {
                         val entry = it.value
@@ -306,7 +324,13 @@ class Undo(
                             entity.blockPosition()
                         )
                     )
-                    if (it.value == PlayerData.NotExistEntityEntry) {
+                    val dropped = if (survival) SurvivalUndo.droppedStack(record, it.key) else null
+                    if (it.value == PlayerData.NotExistEntityEntry && entity is ItemEntity && dropped != null &&
+                        SurvivalUndo.sameItem(entity.item, dropped) && entity.item.count > dropped.count
+                    ) {
+                        debugLogger("undo entity ${it.key} shrinking by ${dropped.count}")
+                        entity.item = entity.item.copyWithCount(entity.item.count - dropped.count)
+                    } else if (it.value == PlayerData.NotExistEntityEntry) {
                         debugLogger("undo entity ${it.key} removing")
                         entity.discard()
                     } else if (it.value.nbt.size() == 0) {
@@ -421,6 +445,8 @@ class Undo(
                 1 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.restore_success"))
                 2 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_blocks_info"))
                 16 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.no_permission"))
+                STATUS_CREATIVE_RECORD -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.creative_record"))
+                STATUS_ENTITY_GONE -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.entity_gone"))
                 32 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.not_recording"))
                 64 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.busy"))
                 65536 -> Text.translatable("reden.message.undo.base", Text.translatable("reden.message.undo.unknown_error"))
@@ -430,8 +456,18 @@ class Undo(
         }
         *///?}
 
+        private fun refused(plan: SurvivalUndo.Plan?, player: ServerPlayer, sendStatus: (Int) -> Unit) = when (plan) {
+            is SurvivalUndo.Plan.Refused -> true.also { sendStatus(plan.status) }
+            is SurvivalUndo.Plan.Missing -> true.also { player.sendSystemMessage(SurvivalUndo.missingMessage(plan)) }
+            else -> false
+        }
+
         private fun handle(packet: Undo, player: ServerPlayer, sendStatus: (Int) -> Unit) {
             val view = player.data()
+            if (packet.status == REQUEST_CREATIVE_ONLY || packet.status == REQUEST_ALLOW_SURVIVAL) {
+                view.creativeOnly = packet.status == REQUEST_CREATIVE_ONLY
+                return
+            }
             if (!view.canRecord) {
                 sendStatus(16)
                 return
@@ -447,8 +483,16 @@ class Undo(
                 // 不取消跟踪会导致undo的更改也被记录，边读边写异常
                 UndoMixinHelper.undoRecords.clear()
             }
+            val world =
+                //? if <= 1.21.5
+                /*player.serverLevel()*/
+                //? if >= 1.21.6
+                player.level()
+            val survival = !player.isCreative
             when (packet.status) {
                 0 -> view.undo.lastValid()?.let { undoRecord ->
+                    val plan = if (survival) SurvivalUndo.planUndo(world, player, undoRecord) else null
+                    if (refused(plan, player, sendStatus)) return
                     view.undo.removeLast()
                     UndoMixinHelper.removeRecord(undoRecord.id)
                     server.execute {
@@ -460,10 +504,7 @@ class Undo(
                             ).apply {
                                 data.putAll(undoRecord.data.keys.associateWith { posLong ->
                                     this.fromWorld( // add entity info to this redo record
-                                        //? if <= 1.21.5
-                                        /*player.serverLevel(),*/
-                                        //? if >= 1.21.6
-                                        player.level(),
+                                        world,
                                         BlockPos.of(posLong),
                                         true
                                     )
@@ -471,30 +512,20 @@ class Undo(
                                 entities.clear()
                             }
                         )
-                        operate(
-                            //? if <= 1.21.5
-                            /*player.serverLevel(),*/
-                            //? if >= 1.21.6
-                            player.level(),
-                            undoRecord,
-                            view.redo.last()
-                        )
+                        if (plan is SurvivalUndo.Plan.Ok) SurvivalUndo.apply(player, plan.total)
+                        operate(world, undoRecord, view.redo.last(), survival = survival)
+                        if (plan is SurvivalUndo.Plan.Ok) SurvivalUndo.afterUndoApplied(world, view.redo.last(), plan.inventoryPart)
                         sendStatus(0)
                     }
                 } ?: sendStatus(2)
 
                 1 -> view.redo.lastValid()?.let {
+                    val plan = if (survival) SurvivalUndo.planRedo(world, player, it) else null
+                    if (refused(plan, player, sendStatus)) return
                     view.redo.removeLast()
                     server.execute {
-                        operate(
-                            //? if <= 1.21.5
-                            /*player.serverLevel(),*/
-                            //? if >= 1.21.6
-                            player.level(),
-                            it,
-                            null,
-                            isUndo = false
-                        )
+                        if (plan is SurvivalUndo.Plan.Ok) SurvivalUndo.apply(player, plan.total)
+                        operate(world, it, null, isUndo = false, survival = survival)
                         view.undo.add(it.undoRecord)
                         sendStatus(1)
                     }

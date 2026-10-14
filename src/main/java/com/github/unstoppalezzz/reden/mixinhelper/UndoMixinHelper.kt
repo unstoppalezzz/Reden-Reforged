@@ -15,12 +15,15 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.recordId
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.recording
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecords
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecordsMap
+import com.github.unstoppalezzz.reden.undo.SurvivalUndo
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Entity
+import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
@@ -616,6 +619,7 @@ object UndoMixinHelper {
         if (!playerView.isRecording) {
             playerView.isRecording = true
             val record = addRecord(cause, player)
+            SurvivalUndo.startRecord(player, record)
             playerView.undo.add(record)
             if (isDebug) {
                 val caller = Throwable().stackTrace
@@ -637,6 +641,7 @@ object UndoMixinHelper {
         val playerView = player.data()
         if (playerView.isRecording) {
             playerView.isRecording = false
+            recording?.let { SurvivalUndo.stopRecord(player, it) }
             val stoppingRecordId = recording?.id
             popRecord { "player recording/${player.scoreboardName}/${recording?.cause}" }
             if (stoppingRecordId != null) {
@@ -660,6 +665,19 @@ object UndoMixinHelper {
                 }
             }
         }
+    }
+
+    @JvmStatic
+    fun playerStopRecordingUnlessSurvival(player: ServerPlayer) {
+        if (player.data().isRecording && recording?.survival != null) return
+        playerStopRecording(player)
+    }
+
+    private fun refreshLingeringSurvivalRecord() {
+        val id = pendingLingerRecordId ?: return
+        if (com.github.unstoppalezzz.reden.utils.server.tickCount > pendingLingerExpireTick + 1) return
+        val record = undoRecordsMap[id] ?: return
+        SurvivalUndo.snapshotContainers(record, record.survival ?: return)
     }
 
     private fun playerQuit(player: ServerPlayer) =
@@ -700,9 +718,19 @@ object UndoMixinHelper {
     fun entitySpawned(entity: Entity) {
         if (entity is ServerPlayer) return
         recording?.entities?.putIfAbsent(entity.uuid, PlayerData.NotExistEntityEntry)
+        recording?.survival?.spawnedTypes?.putIfAbsent(entity.uuid, entity.type)
+    }
+
+    @JvmStatic
+    fun itemEntityStackSet(entity: ItemEntity) {
+        val record = recording ?: return
+        val info = record.survival ?: return
+        if (entity.item.isEmpty || record.entities[entity.uuid] != PlayerData.NotExistEntityEntry) return
+        info.droppedItems.putIfAbsent(entity.uuid, entity.item.copy())
     }
 
     init {
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ -> playerQuit(handler.player) }
+        ServerTickEvents.END_SERVER_TICK.register { refreshLingeringSurvivalRecord() }
     }
 }

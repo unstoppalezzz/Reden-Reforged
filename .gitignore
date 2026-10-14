@@ -1,7 +1,8 @@
 .gradle
 .kotlin
-build/reports/
-buildSrc/build/classes
+/build/
+.DS_Store
+buildSrc/build/
 .vscode/
 versions/*/build/
 versions/*/bin/

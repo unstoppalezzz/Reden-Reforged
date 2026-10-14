@@ -18,18 +18,30 @@ fun configureKeyCallbacks(mc: Minecraft) {
         true
     }
     UNDO_KEY.callback {
-        if (mc.gameMode?.playerMode?.isCreative != true)
+        if (!undoAllowed(mc))
             return@callback false
         else
             sendUndo(Undo(0))
         true
     }
     REDO_KEY.callback {
-        if (mc.gameMode?.playerMode?.isCreative == true) {
+        if (undoAllowed(mc)) {
             sendUndo(Undo(1))
             true
         } else false
     }
+}
+
+private fun undoAllowed(mc: Minecraft) =
+    mc.gameMode?.playerMode?.isCreative == true || (mc.gameMode != null && !CREATIVE_ONLY.booleanValue)
+
+fun syncUndoSettings() {
+    //? if >=1.20.5 {
+    if (!ClientPlayNetworking.canSend(Undo.ID)) return
+    //?} else {
+    /*if (Minecraft.getInstance().connection == null) return
+    *///?}
+    sendUndo(Undo(if (CREATIVE_ONLY.booleanValue) Undo.REQUEST_CREATIVE_ONLY else Undo.REQUEST_ALLOW_SURVIVAL))
 }
 
 private fun sendUndo(packet: Undo) {
