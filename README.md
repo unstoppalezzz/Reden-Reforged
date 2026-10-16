@@ -38,7 +38,11 @@ This fork exists because the original project has not been updated in over a yea
  - added support for pressure plates and string updates
  - updated to latest version
  - survival undo
- 
+
+## Settings
+
+Press R+C in game to access the setting page
+
 ## Credits
 
 Original project: [zly2006/reden-is-what-we-made](https://github.com/zly2006/reden-is-what-we-made)  
