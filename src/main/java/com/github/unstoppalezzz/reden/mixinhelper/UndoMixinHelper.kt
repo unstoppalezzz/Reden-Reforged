@@ -641,9 +641,16 @@ object UndoMixinHelper {
         val playerView = player.data()
         if (playerView.isRecording) {
             playerView.isRecording = false
-            recording?.let { SurvivalUndo.stopRecord(player, it) }
-            val stoppingRecordId = recording?.id
-            popRecord { "player recording/${player.scoreboardName}/${recording?.cause}" }
+            val stopping = recording
+            stopping?.let { SurvivalUndo.stopRecord(player, it) }
+            val stoppingRecordId = stopping?.id
+            popRecord { "player recording/${player.scoreboardName}/${stopping?.cause}" }
+            if (stopping != null && stopping.isNoOp()) {
+                removeRecord(stopping.id)
+                playerView.undo.remove(stopping)
+                if (isDebug) debugLogger("[record] discarded empty record ${stopping.id} cause=${stopping.cause}")
+                return
+            }
             if (stoppingRecordId != null) {
                 pendingLingerRecordId = stoppingRecordId
                 pendingLingerExpireTick =
@@ -666,6 +673,8 @@ object UndoMixinHelper {
             }
         }
     }
+
+    private fun PlayerData.UndoRecord.isNoOp() = data.isEmpty() && entities.isEmpty()
 
     @JvmStatic
     fun playerStopRecordingUnlessSurvival(player: ServerPlayer) {
