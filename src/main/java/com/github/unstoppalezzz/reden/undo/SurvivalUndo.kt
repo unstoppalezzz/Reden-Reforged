@@ -30,6 +30,7 @@ import kotlin.math.min
 
 object SurvivalUndo {
     const val PERMISSION = "reden.undo.survival"
+    const val CREATIVE_PERMISSION = "reden.undo.creative"
 
     class Info(val level: ServerLevel, val inventoryBefore: List<ItemStack>) {
         var inventoryAfter: List<ItemStack>? = null
@@ -72,13 +73,20 @@ object SurvivalUndo {
         }.getOrNull()
     }
 
-    fun hasPermission(player: ServerPlayer): Boolean {
-        permissionValueMethod?.let { method ->
-            when (runCatching { method.invoke(null, player, PERMISSION) }.getOrNull()?.toString()) {
-                "TRUE" -> return true
-                "FALSE" -> return false
-            }
+    private fun permissionValue(player: ServerPlayer, node: String): Boolean? {
+        val method = permissionValueMethod ?: return null
+        return when (runCatching { method.invoke(null, player, node) }.getOrNull()?.toString()) {
+            "TRUE" -> true
+            "FALSE" -> false
+            else -> null
         }
+    }
+
+    fun hasCreativePermission(player: ServerPlayer): Boolean =
+        permissionValue(player, CREATIVE_PERMISSION) ?: true
+
+    fun hasPermission(player: ServerPlayer): Boolean {
+        permissionValue(player, PERMISSION)?.let { return it }
         //? if >=1.21.9 {
         if (server.isSingleplayerOwner(player.nameAndId())) return true
         //?} else {

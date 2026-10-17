@@ -30,7 +30,11 @@ public class Reden implements ModInitializer {
     @Override
     public void onInitialize() {
         ChannelsKt.registerChannelServer();
+        //? if >= 1.21.9 {
         ServerLifecycleEvents.SERVER_STARTED.register(UtilsKt::setServer);
+        //?} else {
+        /*ServerLifecycleEvents.SERVER_STARTING.register(UtilsKt::setServer);
+        *///?}
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> UndoMixinHelper.cleanup());
     }
 

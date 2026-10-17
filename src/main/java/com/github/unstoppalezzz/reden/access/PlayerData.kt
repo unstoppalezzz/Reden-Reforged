@@ -34,7 +34,9 @@ class PlayerData(
 
     var behalfBy: ServerPlayer? = null
     var creativeOnly: Boolean = true
-    val canRecord: Boolean get() = player.isCreative || (!creativeOnly && SurvivalUndo.hasPermission(player))
+    val canRecord: Boolean get() =
+        if (player.isCreative) SurvivalUndo.hasCreativePermission(player)
+        else !creativeOnly && SurvivalUndo.hasPermission(player)
     val undo: MutableList<UndoRecord> = mutableListOf()
     val redo: MutableList<RedoRecord> = mutableListOf()
     var isRecording: Boolean = false
