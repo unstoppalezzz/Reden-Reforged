@@ -1,4 +1,6 @@
-# 0.10.4
+# 0.11.4
 
-- 应粉丝要求，添加绿石菜单
-- 修复投影页面崩溃
+- added survival mode support
+- added 1.20 support
+- fixed old redstone ticks activating after undo
+- added "reden.undo.creative" and "reden.undo.survival" permission for servers
