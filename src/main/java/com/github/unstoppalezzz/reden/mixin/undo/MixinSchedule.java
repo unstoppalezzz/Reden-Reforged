@@ -12,9 +12,11 @@ import net.minecraft.world.ticks.ScheduledTick;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 @Mixin(LevelTicks.class)
 @SuppressWarnings("rawtypes")
@@ -69,6 +71,12 @@ public class MixinSchedule {
                 + ", DEFERRED (not dropped) to " + (scheduledTick.triggerTick() + (until - now) + 1));
         ((LevelTicks) (Object) this).schedule(new ScheduledTick(
                 scheduledTick.type(), scheduledTick.pos(), scheduledTick.triggerTick() + (until - now) + 1, 0L));
+    }
+
+    @ModifyVariable(method = "clearArea", at = @At("STORE"), ordinal = 0)
+    private Predicate filterClearArea(Predicate predicate) {
+        Predicate filter = UndoMixinHelper.tickClearFilter;
+        return filter == null ? predicate : predicate.and(filter);
     }
 
     @Inject(

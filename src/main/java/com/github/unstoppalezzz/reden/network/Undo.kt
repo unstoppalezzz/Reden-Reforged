@@ -253,6 +253,10 @@ class Undo(
                 }
             }
 
+            if (isUndo) {
+                UndoMixinHelper.dropPendingTicks(world, record.data.keys.map(BlockPos::of), record.id)
+            }
+
             //? if >=26.1 {
             movingRestores.forEach { (dest, _, _) ->
                 world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)

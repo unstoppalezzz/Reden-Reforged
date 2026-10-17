@@ -192,6 +192,29 @@ object UndoMixinHelper {
     @JvmStatic
     fun isFrozen(pos: BlockPos, tick: Int): Boolean = frozenUntil(pos, tick) != -1
 
+    @JvmField
+    var tickClearFilter: java.util.function.Predicate<Any>? = null
+
+    private const val PENDING_TICK_MARGIN = 16
+
+    fun dropPendingTicks(world: ServerLevel, positions: Collection<BlockPos>, minUndoId: Long) {
+        if (positions.isEmpty() || minUndoId == 0L) return
+        val box = net.minecraft.world.level.levelgen.structure.BoundingBox(
+            positions.minOf { it.x } - PENDING_TICK_MARGIN, positions.minOf { it.y } - PENDING_TICK_MARGIN, positions.minOf { it.z } - PENDING_TICK_MARGIN,
+            positions.maxOf { it.x } + PENDING_TICK_MARGIN, positions.maxOf { it.y } + PENDING_TICK_MARGIN, positions.maxOf { it.z } + PENDING_TICK_MARGIN
+        )
+        tickClearFilter = java.util.function.Predicate { tick ->
+            val id = (tick as UndoableAccess).undoId
+            (id >= minUndoId).also { if (it) debugLogger("[undo] dropping pending tick $tick (undoId=$id)") }
+        }
+        try {
+            world.blockTicks.clearArea(box)
+            world.fluidTicks.clearArea(box)
+        } finally {
+            tickClearFilter = null
+        }
+    }
+
     @JvmStatic
     fun taggedRecordId(pos: BlockPos): Long {
         if (!recordTags.containsKey(pos.asLong())) return 0L
