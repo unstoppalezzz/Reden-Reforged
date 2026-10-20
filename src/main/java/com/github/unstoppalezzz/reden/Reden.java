@@ -38,27 +38,6 @@ public class Reden implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> UndoMixinHelper.cleanup());
     }
 
-    private ClassLoader hijackClassLoader() {
-        ClassLoader classLoader = Reden.class.getClassLoader();
-        if (classLoader == null) {
-            throw new IllegalStateException("Reden's class loader is null");
-        }
-        return new ClassLoader(classLoader) {
-            @Override
-            public Class<?> loadClass(String name) throws ClassNotFoundException {
-                if (name.startsWith("com.github.unstoppalezzz.reden")) {
-                    try {
-                        getClassLoadingLock("1").wait();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return super.loadClass(name);
-                }
-                return classLoader.loadClass(name);
-            }
-        };
-    }
-
 //? if >= 26.1 {
     public static Identifier identifier(String path) {
         return Identifier.fromNamespaceAndPath(MOD_ID, path);
