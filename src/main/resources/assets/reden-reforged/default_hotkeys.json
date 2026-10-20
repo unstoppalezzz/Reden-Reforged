@@ -1,0 +1,11 @@
+{
+  "us": {
+    "redenConfigKey": "R,C",
+    "undoKey": "LEFT_CONTROL,Z",
+    "redoKey": "LEFT_CONTROL,Y"
+  },
+  "de": {
+    "undoKey": "LEFT_CONTROL,Y",
+    "redoKey": "LEFT_CONTROL,Z"
+  }
+}
