@@ -7,6 +7,8 @@ import net.minecraft.commands.arguments.selector.EntitySelector
 import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.chat.Component
+import net.minecraft.resources.ResourceKey
+import net.minecraft.world.level.Level
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.EntityType
@@ -41,6 +43,18 @@ class PlayerData(
     val redo: MutableList<RedoRecord> = mutableListOf()
     var isRecording: Boolean = false
     var pearlListening: Boolean = false
+
+    fun copyFrom(old: PlayerData) {
+        behalfBy = old.behalfBy
+        creativeOnly = old.creativeOnly
+        undo.addAll(old.undo)
+        redo.addAll(old.redo)
+        isRecording = old.isRecording
+        com.github.unstoppalezzz.reden.utils.debugLogger(
+            "[respawn] copied ${player.scoreboardName}: undo=${undo.map { it.id }} redo=${redo.map { it.id }} " +
+                "creativeOnly=$creativeOnly isRecording=$isRecording"
+        )
+    }
 
     data class Entry(
         val state: BlockState,
@@ -130,6 +144,9 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
     ) : UndoRedoRecord(id, lastChangedTick, entities, data) {
         var notified = false
         var survival: SurvivalUndo.Info? = null
+        val killedPlayers: MutableMap<UUID, KilledPlayer> = mutableMapOf()
+
+        override fun getMemorySize() = super.getMemorySize() + killedPlayers.values.sumOf { it.nbt.sizeInBytes() }
 
         enum class Cause(val message: Component) {
             BREAK_BLOCK(Text.translatable("reden.feature.undo.cause.break_block")),
@@ -157,6 +174,16 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
 
         override fun getMemorySize() = super.getMemorySize() + undoRecord.getMemorySize()
     }
+
+    class KilledPlayer(
+        val nbt: CompoundTag,
+        val level: ResourceKey<Level>,
+        val x: Double,
+        val y: Double,
+        val z: Double,
+        val yRot: Float,
+        val xRot: Float
+    )
 
     interface EntityEntry {
         val entity: EntityType<*>?

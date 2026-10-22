@@ -1,6 +1,7 @@
 package com.github.unstoppalezzz.reden.mixin.undo.data;
 
 import com.github.unstoppalezzz.reden.access.ChunkSectionInterface;
+import com.github.unstoppalezzz.reden.utils.UtilsKt;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import org.jetbrains.annotations.NotNull;
@@ -10,6 +11,12 @@ import org.spongepowered.asm.mixin.Unique;
 @Mixin(LevelChunkSection.class)
 public class MixinChunkSection implements ChunkSectionInterface {
     @Unique int[] modifyTime;
+    @Unique int createdTick = UtilsKt.getServerTick();
+
+    @Override
+    public int createdTick$reden() {
+        return createdTick;
+    }
 
     @Unique private int getIndex(int x, int y, int z) {
         return x << 8 | z << 4 | y;

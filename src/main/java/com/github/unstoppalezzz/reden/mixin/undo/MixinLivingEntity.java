@@ -46,4 +46,15 @@ public abstract class MixinLivingEntity extends Entity {
     private void onDeath(DamageSource damageSource, CallbackInfo ci) {
         UndoMixinHelper.tryAddRelatedEntity(this);
     }
+
+    @Inject(
+            method = "dropAllDeathLoot",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private void suppressDeathDrops(CallbackInfo ci) {
+        if (UndoMixinHelper.suppressDeathDrops) {
+            ci.cancel();
+        }
+    }
 }

@@ -9,4 +9,7 @@ interface ChunkSectionInterface {
 
     @JvmName("setModifyTime\$reden")
     fun setModifyTime(pos: BlockPos, time: Int)
+
+    @JvmName("createdTick\$reden")
+    fun createdTick(): Int
 }

@@ -16,6 +16,7 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.recording
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecords
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecordsMap
 import com.github.unstoppalezzz.reden.undo.SurvivalUndo
+import com.github.unstoppalezzz.reden.utils.multiver.*
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.core.BlockPos
@@ -689,6 +690,7 @@ object UndoMixinHelper {
             val allowedUndoSizeInBytes = 30 * 1024 * 1024
             if (allowedUndoSizeInBytes >= 0) {
                 while (sum > allowedUndoSizeInBytes) {
+                    if (isDebug) debugLogger("[record] over memory limit ($sum bytes), dropping oldest record ${playerView.undo.first().id}")
                     removeRecord(playerView.undo.first().id)
                     playerView.undo.removeFirst()
                     sum = playerView.undo.map(PlayerData.UndoRecord::getMemorySize).sum()
@@ -697,7 +699,7 @@ object UndoMixinHelper {
         }
     }
 
-    private fun PlayerData.UndoRecord.isNoOp() = data.isEmpty() && entities.isEmpty()
+    private fun PlayerData.UndoRecord.isNoOp() = data.isEmpty() && entities.isEmpty() && killedPlayers.isEmpty()
 
     @JvmStatic
     fun playerStopRecordingUnlessSurvival(player: ServerPlayer) {
@@ -745,6 +747,20 @@ object UndoMixinHelper {
     }
 
     @JvmField var isInitializingEntity = false
+    @JvmField var suppressDeathDrops = false
+
+    fun snapshotPlayer(player: ServerPlayer) = PlayerData.KilledPlayer(
+        player.saveWithoutId(CompoundTag()),
+        player.level().dimension(),
+        player.x, player.y, player.z,
+        player.yRot, player.xRot
+    )
+
+    @JvmStatic
+    fun playerKilled(player: ServerPlayer) {
+        if (player.isDeadOrDying) return
+        recording?.killedPlayers?.putIfAbsent(player.uuid, snapshotPlayer(player))
+    }
 
     @JvmStatic
     fun entitySpawned(entity: Entity) {

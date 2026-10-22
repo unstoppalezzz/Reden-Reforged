@@ -11,8 +11,13 @@ import fi.dy.masa.malilib.config.options.ConfigHotkey
 import fi.dy.masa.malilib.hotkeys.IHotkey
 import net.fabricmc.api.EnvType
 import net.fabricmc.api.Environment
-//? if <26.3
-/*import org.lwjgl.glfw.GLFW*/
+//? if <26.3 {
+/*import org.lwjgl.glfw.GLFW
+*///?} else {
+import org.lwjgl.sdl.SDLKeyboard
+import org.lwjgl.sdl.SDLKeycode
+import org.lwjgl.sdl.SDLScancode
+//?}
 
 // @formatter:off
 @JvmField val HOTKEYS = mutableListOf<IHotkey>()
@@ -28,7 +33,12 @@ private val KEYBOARD_LAYOUT: String = run {
         if (GLFW.glfwGetKeyName(GLFW.GLFW_KEY_Z, 0).equals("y", ignoreCase = true)) return@run "de"
     } catch (e: Throwable) {
     }
-    *///?}
+    *///?} else {
+    try {
+        if (SDLKeyboard.SDL_GetKeyFromScancode(SDLScancode.SDL_SCANCODE_Z, 0, false) == SDLKeycode.SDLK_Y) return@run "de"
+    } catch (e: Throwable) {
+    }
+    //?}
     "us"
 }
 

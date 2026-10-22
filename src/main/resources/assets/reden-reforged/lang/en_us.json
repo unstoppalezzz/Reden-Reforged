@@ -119,6 +119,7 @@
   "reden.message.undo.missing_items": "You need these items to undo this: %s",
   "reden.message.undo.no_blocks_info": "No blocks info",
   "reden.message.undo.no_permission": "You do not have permission to undo",
+  "reden.message.undo.no_kill_others_permission": "You do not have permission to undo the /kill of %s",
   "reden.message.undo.not_recording": "Not recording",
   "reden.message.undo.restore_success": "Redo success",
   "reden.message.undo.rollback_success": "Undo success",

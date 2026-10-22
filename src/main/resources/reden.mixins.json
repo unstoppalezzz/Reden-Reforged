@@ -15,6 +15,7 @@
     "undo.MixinExplosion",
     "undo.MixinHopperBlockEntity",
     "undo.MixinItemEntity",
+    "undo.MixinKillCommand",
     "undo.MixinLivingEntity",
     "undo.MixinMovingPiston",
     "undo.MixinPistonEntity",

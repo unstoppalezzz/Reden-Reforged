@@ -42,6 +42,8 @@ val gameFrozen: Boolean get() = server.tickRateManager().isFrozen
 
 val isOnServerThread: Boolean get() = ::server.isInitialized && server.isSameThread
 
+val serverTick: Int get() = if (::server.isInitialized) server.tickCount else 0
+
 fun Position.toBlockPos(): BlockPos {
     return BlockPos.containing(this)
 }

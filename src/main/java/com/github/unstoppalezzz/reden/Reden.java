@@ -1,8 +1,10 @@
 package com.github.unstoppalezzz.reden;
 
+import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import com.github.unstoppalezzz.reden.utils.UtilsKt;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 //? if >= 1.21.11 {
 import net.minecraft.resources.Identifier;
@@ -36,6 +38,8 @@ public class Reden implements ModInitializer {
         /*ServerLifecycleEvents.SERVER_STARTING.register(UtilsKt::setServer);
         *///?}
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> UndoMixinHelper.cleanup());
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) ->
+                PlayerData.Companion.data(newPlayer).copyFrom(PlayerData.Companion.data(oldPlayer)));
     }
 
 //? if >= 26.1 {

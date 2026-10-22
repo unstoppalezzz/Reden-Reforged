@@ -115,6 +115,39 @@ class Undo(
 
         private const val ENTITY_TRIGGER_RECHECK_DELAY = 10
 
+        private fun rearmObservers(world: ServerLevel, restoredPositions: List<BlockPos>, changedPositions: Set<BlockPos>) {
+            val candidates = LinkedHashSet<BlockPos>()
+            restoredPositions.forEach { pos ->
+                val state = world.getBlockState(pos)
+                if (state.block is net.minecraft.world.level.block.ObserverBlock &&
+                    state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED)
+                ) {
+                    candidates += pos
+                }
+            }
+            changedPositions.forEach { changed ->
+                val changedState = world.getBlockState(changed)
+                if (changedState.block !is net.minecraft.world.level.block.ObserverBlock) return@forEach
+                val facing = changedState.getValue(net.minecraft.world.level.block.ObserverBlock.FACING)
+                val partnerPos = changed.relative(facing)
+                val partner = world.getBlockState(partnerPos)
+                if (partner.block is net.minecraft.world.level.block.ObserverBlock &&
+                    partner.getValue(net.minecraft.world.level.block.ObserverBlock.FACING) == facing.opposite
+                ) {
+                    candidates += partnerPos
+                }
+            }
+            candidates.forEach { pos ->
+                val block = world.getBlockState(pos).block
+                if (!world.blockTicks.hasScheduledTick(pos, block)) {
+                    debugLogger("[undo] rearming observer at ${pos.toShortString()}")
+                    world.scheduleTick(pos, block, OBSERVER_PULSE_DELAY)
+                }
+            }
+        }
+
+        private const val OBSERVER_PULSE_DELAY = 2
+
         private fun destroyPrimedTntAt(world: ServerLevel, pos: BlockPos) {
             val center = net.minecraft.world.phys.Vec3.atCenterOf(pos)
             val tntEntities = world.getEntitiesOfClass(
@@ -129,7 +162,10 @@ class Undo(
 
         private fun isStale(world: ServerLevel, pos: BlockPos, entry: PlayerData.Entry, isUndo: Boolean): Boolean {
             val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
-            return sec.getModifyTime(pos) < entry.time && isUndo
+            if (!isUndo) return false
+            val modifyTime = sec.getModifyTime(pos)
+            if (modifyTime == 0 && sec.createdTick() > entry.time) return false
+            return modifyTime < entry.time
         }
 
         internal fun willRestore(world: ServerLevel, pos: BlockPos, entry: PlayerData.Entry, isUndo: Boolean) =
@@ -176,6 +212,7 @@ class Undo(
 
         private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true, survival: Boolean = false) {
             val restoredPositions = mutableListOf<BlockPos>()
+            val changedPositions = mutableSetOf<BlockPos>()
             val skippedStale = mutableListOf<BlockPos>()
             val skippedMoving = mutableListOf<BlockPos>()
             val movingRestores = mutableListOf<Triple<BlockPos, BlockPos, net.minecraft.world.level.block.state.BlockState>>()
@@ -197,6 +234,7 @@ class Undo(
                 }
                 if (entry.state != currentState) {
                     debugLogger("[undo] restore ${pos.toShortString()}: $currentState -> ${entry.state}")
+                    changedPositions += pos
                 }
                 if (entry.state.block is net.minecraft.world.level.block.piston.MovingPistonBlock) {
                     val tag = entry.beData as? CompoundTag
@@ -262,11 +300,13 @@ class Undo(
                 world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
                 restoredPositions += dest
+                changedPositions += dest
             }
             movingRestores.forEach { (dest, origin, carried) ->
                 world.modified(origin, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(origin, carried)
                 restoredPositions += origin
+                changedPositions += origin
             }
 
         
@@ -275,6 +315,7 @@ class Undo(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
             rescheduleRestoredEntityTriggers(world, restoredPositions)
+            rearmObservers(world, restoredPositions, changedPositions)
 
             restoredPositions
                 .filter { pos ->
@@ -375,11 +416,13 @@ class Undo(
                 world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
                 restoredPositions += dest
+                changedPositions += dest
             }
             movingRestores.forEach { (dest, origin, carried) ->
                 world.modified(origin, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(origin, carried)
                 restoredPositions += origin
+                changedPositions += origin
             }
 
         
@@ -388,6 +431,7 @@ class Undo(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
             rescheduleRestoredEntityTriggers(world, restoredPositions)
+            rearmObservers(world, restoredPositions, changedPositions)
 
             restoredPositions
                 .filter { pos ->
@@ -409,7 +453,12 @@ class Undo(
         private fun <T: PlayerData.UndoRedoRecord> MutableList<T>.lastValid(): T? {
             while (this.isNotEmpty()) {
                 val last = this.last()
-                if (last.data.isNotEmpty() || last.entities.isNotEmpty()) {
+                val killedPlayers = when (last) {
+                    is PlayerData.UndoRecord -> last.killedPlayers
+                    is PlayerData.RedoRecord -> last.undoRecord.killedPlayers
+                    else -> emptyMap()
+                }
+                if (last.data.isNotEmpty() || last.entities.isNotEmpty() || killedPlayers.isNotEmpty()) {
                     return last
                 }
                 UndoMixinHelper.removeRecord(last.id)
@@ -459,6 +508,65 @@ class Undo(
             player.sendSystemMessage(msg)
         }
         *///?}
+
+        private fun ServerPlayer.serverLevelCompat(): ServerLevel =
+            //? if <= 1.21.5
+            /*serverLevel()*/
+            //? if >= 1.21.6
+            level()
+
+        private fun canAffectKilledPlayer(player: ServerPlayer, uuid: java.util.UUID): Boolean =
+            uuid == player.uuid || SurvivalUndo.hasKillOthersPermission(player)
+
+        private fun restoreKilledPlayers(player: ServerPlayer, record: PlayerData.UndoRecord) {
+            record.killedPlayers.forEach { (uuid, snapshot) ->
+                var target = server.playerList.getPlayer(uuid) ?: return@forEach
+                if (!canAffectKilledPlayer(player, uuid)) {
+                    player.sendSystemMessage(Text.translatable("reden.message.undo.base",
+                        Text.translatable("reden.message.undo.no_kill_others_permission", target.scoreboardName)))
+                    return@forEach
+                }
+                if (target.isDeadOrDying) {
+                    target.connection.handleClientCommand(
+                        net.minecraft.network.protocol.game.ServerboundClientCommandPacket(
+                            net.minecraft.network.protocol.game.ServerboundClientCommandPacket.Action.PERFORM_RESPAWN
+                        )
+                    )
+                    target = server.playerList.getPlayer(uuid) ?: return@forEach
+                }
+                val nbt = snapshot.nbt.copy()
+                nbt.remove("ActiveEffects")
+                nbt.remove("active_effects")
+                target.load(nbt)
+                val level = server.getLevel(snapshot.level) ?: target.serverLevelCompat()
+                //? if >= 1.21.2 {
+                target.teleportTo(level, snapshot.x, snapshot.y, snapshot.z, emptySet(), snapshot.yRot, snapshot.xRot, true)
+                //?} else {
+                /*target.teleportTo(level, snapshot.x, snapshot.y, snapshot.z, snapshot.yRot, snapshot.xRot)
+                *///?}
+                target.onUpdateAbilities()
+                debugLogger("[undo] restored killed player ${target.scoreboardName}")
+            }
+        }
+
+        private fun killPlayersAgain(player: ServerPlayer, record: PlayerData.UndoRecord) {
+            record.killedPlayers.keys.toList().forEach { uuid ->
+                if (!canAffectKilledPlayer(player, uuid)) return@forEach
+                val target = server.playerList.getPlayer(uuid) ?: return@forEach
+                if (target.isDeadOrDying) return@forEach
+                record.killedPlayers[uuid] = UndoMixinHelper.snapshotPlayer(target)
+                UndoMixinHelper.suppressDeathDrops = true
+                try {
+                    //? if >= 1.21.2 {
+                    target.kill(target.serverLevelCompat())
+                    //?} else {
+                    /*target.kill()
+                    *///?}
+                } finally {
+                    UndoMixinHelper.suppressDeathDrops = false
+                }
+            }
+        }
 
         private fun refused(plan: SurvivalUndo.Plan?, player: ServerPlayer, sendStatus: (Int) -> Unit) = when (plan) {
             is SurvivalUndo.Plan.Refused -> true.also { sendStatus(plan.status) }
@@ -519,6 +627,7 @@ class Undo(
                         if (plan is SurvivalUndo.Plan.Ok) SurvivalUndo.apply(player, plan.total)
                         operate(world, undoRecord, view.redo.last(), survival = survival)
                         if (plan is SurvivalUndo.Plan.Ok) SurvivalUndo.afterUndoApplied(world, view.redo.last(), plan.inventoryPart)
+                        restoreKilledPlayers(player, undoRecord)
                         sendStatus(0)
                     }
                 } ?: sendStatus(2)
@@ -530,6 +639,7 @@ class Undo(
                     server.execute {
                         if (plan is SurvivalUndo.Plan.Ok) SurvivalUndo.apply(player, plan.total)
                         operate(world, it, null, isUndo = false, survival = survival)
+                        killPlayersAgain(player, it.undoRecord)
                         view.undo.add(it.undoRecord)
                         sendStatus(1)
                     }
