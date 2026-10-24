@@ -43,6 +43,10 @@ This fork exists because the original project has not been updated in over a yea
 
 Press R+C in game to access the setting page
 
+## Permissions
+
+See [PERMISSIONS.md](PERMISSIONS.md) for the server permission
+
 ## Credits
 
 Original project: [zly2006/reden-is-what-we-made](https://github.com/zly2006/reden-is-what-we-made)  
