@@ -193,8 +193,66 @@ object UndoMixinHelper {
     @JvmStatic
     fun isFrozen(pos: BlockPos, tick: Int): Boolean = frozenUntil(pos, tick) != -1
 
+    private class HeldPlate(val level: ServerLevel, val entities: MutableSet<java.util.UUID>)
+
+    private val suppressedPlates = HashMap<Long, HeldPlate>()
+
+    fun suppressPlatePresses(world: ServerLevel, positions: Collection<BlockPos>) {
+        positions.forEach { pos ->
+            val state = world.getBlockState(pos)
+            if (state.block !is net.minecraft.world.level.block.BasePressurePlateBlock) return@forEach
+            val power = net.minecraft.world.level.block.state.properties.BlockStateProperties.POWER
+            val powered = net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED
+            val released = when {
+                state.hasProperty(power) -> state.getValue(power) == 0
+                state.hasProperty(powered) -> !state.getValue(powered)
+                else -> false
+            }
+            if (!released) return@forEach
+            val inside = world.getEntities(null as Entity?, net.minecraft.world.phys.AABB(pos))
+            if (inside.isEmpty()) return@forEach
+            suppressedPlates[pos.asLong()] = HeldPlate(world, inside.mapTo(HashSet()) { it.uuid })
+            if (isDebug) debugLogger("[plate] undo released ${pos.toShortString()} under ${inside.map { it.type.descriptionId }}, holding it until they step off")
+        }
+    }
+
+    @JvmStatic
+    fun isPlatePressSuppressed(pos: BlockPos, entity: Entity): Boolean =
+        suppressedPlates[pos.asLong()]?.entities?.contains(entity.uuid) == true
+
+    private fun releaseSteppedOffPlates() {
+        if (suppressedPlates.isEmpty()) return
+        suppressedPlates.entries.removeIf { (posLong, held) ->
+            val area = net.minecraft.world.phys.AABB(BlockPos.of(posLong))
+            held.entities.removeIf { uuid ->
+                val entity = held.level.getEntity(uuid)
+                entity == null || !entity.boundingBox.intersects(area)
+            }
+            held.entities.isEmpty()
+        }
+    }
+
+    private val observerFireTicks = HashMap<Long, Int>()
+    private const val OBSERVER_FIRE_MEMORY_TICKS = 6000
+
+    @JvmStatic
+    fun observerFired(pos: BlockPos) {
+        observerFireTicks[pos.asLong()] = com.github.unstoppalezzz.reden.utils.server.tickCount
+    }
+
+    fun lastObserverFire(pos: BlockPos): Int? = observerFireTicks[pos.asLong()]
+
+    private fun forgetOldObserverFires() {
+        val now = com.github.unstoppalezzz.reden.utils.server.tickCount
+        if (now % 200 != 0) return
+        observerFireTicks.values.removeIf { now - it > OBSERVER_FIRE_MEMORY_TICKS }
+    }
+
     @JvmField
     var tickClearFilter: java.util.function.Predicate<Any>? = null
+
+    @JvmField
+    var blockEventClearFilter: java.util.function.Predicate<net.minecraft.world.level.BlockEventData>? = null
 
     private const val PENDING_TICK_MARGIN = 16
 
@@ -208,11 +266,19 @@ object UndoMixinHelper {
             val id = (tick as UndoableAccess).undoId
             (id >= minUndoId).also { if (it) debugLogger("[undo] dropping pending tick $tick (undoId=$id)") }
         }
+        blockEventClearFilter = java.util.function.Predicate { event ->
+            val id = (event as UndoableAccess).undoId
+            (id >= minUndoId).also {
+                if (it && isDebug) debugLogger("[undo] dropping pending block event at ${event.pos().toShortString()} block=${event.block()} (undoId=$id)")
+            }
+        }
         try {
             world.blockTicks.clearArea(box)
             world.fluidTicks.clearArea(box)
+            world.clearBlockEvents(box)
         } finally {
             tickClearFilter = null
+            blockEventClearFilter = null
         }
     }
 
@@ -231,7 +297,7 @@ object UndoMixinHelper {
         if (id == 0L) return 0L
         if (com.github.unstoppalezzz.reden.utils.gameFrozen) return id
         val newest = undoRecordsMap.lastEntry()?.key ?: return id
-        return if (newest > id) newest else id
+        return if (newest > id || undoRecordsMap[id] == null) newest else id
     }
 
     @JvmStatic
@@ -240,6 +306,8 @@ object UndoMixinHelper {
         undoRecords.clear()
         recordTags.clear()
         frozenPositions.clear()
+        suppressedPlates.clear()
+        observerFireTicks.clear()
         pendingLingerRecordId = null
         pendingLingerExpireTick = Int.MIN_VALUE
         throttleTick = Int.MIN_VALUE
@@ -253,10 +321,11 @@ object UndoMixinHelper {
     @JvmStatic
     fun pushRecord(id: Long, reasonSupplier: () -> String): Boolean {
         val reason = reasonSupplier()
+        val attributed = attributedRecordId(id)
         return undoRecords.add(
             UndoRecordEntry(
-                id,
-                undoRecordsMap[id],
+                attributed,
+                undoRecordsMap[attributed],
                 reason
             )
         )
@@ -632,17 +701,41 @@ object UndoMixinHelper {
     @Suppress("unused")
     @JvmStatic
     fun playerStartRecording(player: ServerPlayer) = playerStartRecording(player, PlayerData.UndoRecord.Cause.UNKNOWN)
+    const val PLATE_MERGE_TICKS = 2
+
+    private class StartedRecord(val player: java.util.UUID, val id: Long, val tick: Int)
+    private var lastMergeableRecord: StartedRecord? = null
+
     @JvmStatic
     fun playerStartRecording(
         player: ServerPlayer,
         cause: PlayerData.UndoRecord.Cause
+    ) = playerStartRecording(player, cause, 0)
+
+    @JvmStatic
+    fun playerStartRecording(
+        player: ServerPlayer,
+        cause: PlayerData.UndoRecord.Cause,
+        mergeTicks: Int
     ) {
         val playerView = player.data()
         if (!playerView.canRecord) return
         if (!playerView.isRecording && undoRecords.size != 0) return
         if (!playerView.isRecording) {
+            val now = com.github.unstoppalezzz.reden.utils.server.tickCount
+            val merged = if (mergeTicks <= 0) null else lastMergeableRecord
+                ?.takeIf { it.player == player.uuid && now - it.tick in 0..mergeTicks }
+                ?.let { undoRecordsMap[it.id] }
+                ?.takeIf { it.cause == cause && playerView.undo.lastOrNull() === it }
+            if (merged != null) {
+                playerView.isRecording = true
+                if (isDebug) debugLogger("[record] merged into ${merged.id} cause=$cause player=${player.scoreboardName} tick=$now")
+                undoRecords.add(UndoRecordEntry(merged.id, merged, "player recording/${player.scoreboardName}/$cause"))
+                return
+            }
             playerView.isRecording = true
             val record = addRecord(cause, player)
+            lastMergeableRecord = if (mergeTicks > 0) StartedRecord(player.uuid, record.id, now) else null
             SurvivalUndo.startRecord(player, record)
             playerView.undo.add(record)
             if (isDebug) {
@@ -779,6 +872,10 @@ object UndoMixinHelper {
 
     init {
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ -> playerQuit(handler.player) }
-        ServerTickEvents.END_SERVER_TICK.register { refreshLingeringSurvivalRecord() }
+        ServerTickEvents.END_SERVER_TICK.register {
+            refreshLingeringSurvivalRecord()
+            releaseSteppedOffPlates()
+            forgetOldObserverFires()
+        }
     }
 }

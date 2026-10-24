@@ -5,10 +5,12 @@ import com.github.unstoppalezzz.reden.access.BlockEntityInterface
 import com.github.unstoppalezzz.reden.access.ChunkSectionInterface
 import com.github.unstoppalezzz.reden.access.PlayerData
 import com.github.unstoppalezzz.reden.access.PlayerData.Companion.data
+import com.github.unstoppalezzz.reden.access.UndoableAccess
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.modified
 import com.github.unstoppalezzz.reden.undo.SurvivalUndo
 import com.github.unstoppalezzz.reden.utils.debugLogger
+import com.github.unstoppalezzz.reden.utils.isDebug
 import com.github.unstoppalezzz.reden.utils.multiver.*
 import com.github.unstoppalezzz.reden.utils.server
 import com.github.unstoppalezzz.reden.utils.setBlockNoPP
@@ -100,53 +102,84 @@ class Undo(
             }
         }
 
-        private fun rescheduleRestoredEntityTriggers(world: ServerLevel, restoredPositions: List<BlockPos>) {
-            restoredPositions.forEach { pos ->
-                val state = world.getBlockState(pos)
-                val block = state.block
-                if (block is net.minecraft.world.level.block.TripWireBlock ||
+        private fun rescheduleRestoredEntityTriggers(world: ServerLevel, restoredPositions: List<BlockPos>, recordId: Long) {
+            val triggers = restoredPositions.filter { pos ->
+                val block = world.getBlockState(pos).block
+                block is net.minecraft.world.level.block.TripWireBlock ||
                     block is net.minecraft.world.level.block.DetectorRailBlock ||
                     block is net.minecraft.world.level.block.BasePressurePlateBlock
-                ) {
-                    world.scheduleTick(pos, block, ENTITY_TRIGGER_RECHECK_DELAY)
-                }
+            }
+            if (triggers.isEmpty()) return
+            UndoMixinHelper.pushRecord(recordId) { "recheck entity triggers" }
+            try {
+                triggers.forEach { pos -> world.scheduleTick(pos, world.getBlockState(pos).block, ENTITY_TRIGGER_RECHECK_DELAY) }
+            } finally {
+                UndoMixinHelper.popRecord { "recheck entity triggers" }
             }
         }
 
         private const val ENTITY_TRIGGER_RECHECK_DELAY = 10
 
-        private fun rearmObservers(world: ServerLevel, restoredPositions: List<BlockPos>, changedPositions: Set<BlockPos>) {
-            val candidates = LinkedHashSet<BlockPos>()
-            restoredPositions.forEach { pos ->
-                val state = world.getBlockState(pos)
-                if (state.block is net.minecraft.world.level.block.ObserverBlock &&
-                    state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED)
-                ) {
-                    candidates += pos
-                }
-            }
-            changedPositions.forEach { changed ->
-                val changedState = world.getBlockState(changed)
-                if (changedState.block !is net.minecraft.world.level.block.ObserverBlock) return@forEach
-                val facing = changedState.getValue(net.minecraft.world.level.block.ObserverBlock.FACING)
-                val partnerPos = changed.relative(facing)
-                val partner = world.getBlockState(partnerPos)
-                if (partner.block is net.minecraft.world.level.block.ObserverBlock &&
-                    partner.getValue(net.minecraft.world.level.block.ObserverBlock.FACING) == facing.opposite
-                ) {
-                    candidates += partnerPos
-                }
-            }
-            candidates.forEach { pos ->
-                val block = world.getBlockState(pos).block
-                if (!world.blockTicks.hasScheduledTick(pos, block)) {
-                    debugLogger("[undo] rearming observer at ${pos.toShortString()}")
-                    world.scheduleTick(pos, block, OBSERVER_PULSE_DELAY)
-                }
-            }
-        }
+        private fun unpowerObserver(state: net.minecraft.world.level.block.state.BlockState) =
+            if (state.block is net.minecraft.world.level.block.ObserverBlock &&
+                state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED)
+            ) state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, false) else state
 
         private const val OBSERVER_PULSE_DELAY = 2
+        private const val OBSERVER_CLOCK_PERIOD = 4
+
+        private fun settleObservers(world: ServerLevel, record: PlayerData.UndoRedoRecord, restoredPositions: List<BlockPos>) {
+            val observerBlock = net.minecraft.world.level.block.Blocks.OBSERVER
+            val facingProp = net.minecraft.world.level.block.ObserverBlock.FACING
+            val poweredProp = net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED
+            fun wasPowered(pos: BlockPos) = record.data[pos.asLong()]?.state
+                ?.let { it.block is net.minecraft.world.level.block.ObserverBlock && it.getValue(poweredProp) } == true
+            fun hasTick(pos: BlockPos) = world.blockTicks.hasScheduledTick(pos, observerBlock)
+
+            val observers = restoredPositions.filter { world.getBlockState(it).block is net.minecraft.world.level.block.ObserverBlock }
+            val clocks = LinkedHashSet<Pair<BlockPos, BlockPos>>()
+            observers.forEach { pos ->
+                val facing = world.getBlockState(pos).getValue(facingProp)
+                val partner = pos.relative(facing)
+                val partnerState = world.getBlockState(partner)
+                if (partnerState.block is net.minecraft.world.level.block.ObserverBlock && partnerState.getValue(facingProp) == facing.opposite) {
+                    clocks += if (pos.asLong() < partner.asLong()) pos to partner else partner to pos
+                }
+            }
+            fun wasRecordedObserver(pos: BlockPos) =
+                record.data[pos.asLong()]?.state?.block is net.minecraft.world.level.block.ObserverBlock
+            val running = clocks.filter { (a, b) ->
+                wasPowered(a) || wasPowered(b) || hasTick(a) || hasTick(b) || (wasRecordedObserver(a) && wasRecordedObserver(b))
+            }
+            val keep = running.flatMap { listOf(it.first, it.second) }.toSet()
+
+            observers.filter { it !in keep }
+                .forEach { world.blockTicks.clearArea(net.minecraft.world.level.levelgen.structure.BoundingBox(it)) }
+
+            val restart = running.filter { (a, b) -> !hasTick(a) && !hasTick(b) }
+            if (restart.isEmpty()) return
+            val now = com.github.unstoppalezzz.reden.utils.server.tickCount
+            UndoMixinHelper.pushRecord(record.id) { "restart observer clocks" }
+            try {
+                restart.forEach { (a, b) ->
+                    val fireA = UndoMixinHelper.lastObserverFire(a)
+                    val fireB = UndoMixinHelper.lastObserverFire(b)
+                    val (target, fired) = when {
+                        fireA != null && (fireB == null || fireA >= fireB) -> a to fireA
+                        fireB != null -> b to fireB
+                        else -> a to now + OBSERVER_PULSE_DELAY
+                    }
+                    val delay = Math.floorMod(fired - now - OBSERVER_PULSE_DELAY, OBSERVER_CLOCK_PERIOD) + OBSERVER_PULSE_DELAY
+                    if (isDebug) debugLogger(
+                        "[undo] restarting observer clock ${a.toShortString()} <-> ${b.toShortString()}: " +
+                            "kicking ${target.toShortString()} in $delay ticks (beat of tick $fired)"
+                    )
+                    world.scheduleTick(target, observerBlock, delay)
+                }
+            } finally {
+                UndoMixinHelper.popRecord { "restart observer clocks" }
+            }
+        }
 
         private fun destroyPrimedTntAt(world: ServerLevel, pos: BlockPos) {
             val center = net.minecraft.world.phys.Vec3.atCenterOf(pos)
@@ -212,7 +245,6 @@ class Undo(
 
         private fun operate(world: ServerLevel, record: PlayerData.UndoRedoRecord, redoRecord: PlayerData.RedoRecord?, isUndo: Boolean = true, survival: Boolean = false) {
             val restoredPositions = mutableListOf<BlockPos>()
-            val changedPositions = mutableSetOf<BlockPos>()
             val skippedStale = mutableListOf<BlockPos>()
             val skippedMoving = mutableListOf<BlockPos>()
             val movingRestores = mutableListOf<Triple<BlockPos, BlockPos, net.minecraft.world.level.block.state.BlockState>>()
@@ -220,8 +252,9 @@ class Undo(
                 "[undo] ${if (isUndo) "undo" else "redo"} record ${record.id} at tick ${com.github.unstoppalezzz.reden.utils.server.tickCount}: " +
                     "${record.data.size} blocks, ${record.entities.size} entities, active=${UndoMixinHelper.recording?.id}"
             )
-            record.data.forEach { (posLong, entry) ->
+            record.data.forEach { (posLong, recorded) ->
                 val pos = BlockPos.of(posLong)
+                val entry = unpowerObserver(recorded.state).let { if (it === recorded.state) recorded else recorded.copy(state = it) }
                 val currentState = world.getBlockState(pos)
                 val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
                 if (isStale(world, pos, entry, isUndo)) {
@@ -234,7 +267,6 @@ class Undo(
                 }
                 if (entry.state != currentState) {
                     debugLogger("[undo] restore ${pos.toShortString()}: $currentState -> ${entry.state}")
-                    changedPositions += pos
                 }
                 if (entry.state.block is net.minecraft.world.level.block.piston.MovingPistonBlock) {
                     val tag = entry.beData as? CompoundTag
@@ -260,7 +292,7 @@ class Undo(
                     /*val facing = net.minecraft.core.Direction.from3DDataValue(tag.getInt("facing"))
                     val moveDir = if (!tag.contains("extending") || tag.getBoolean("extending")) facing else facing.opposite
                     *///?}
-                    movingRestores += Triple(pos, pos.relative(moveDir.opposite), carried)
+                    movingRestores += Triple(pos, pos.relative(moveDir.opposite), unpowerObserver(carried))
                     debugLogger(
                         "[undo] moving entry ${pos.toShortString()}: will set AIR there and put $carried back at " +
                             "${pos.relative(moveDir.opposite).toShortString()} (currently ${world.getBlockState(pos.relative(moveDir.opposite))})"
@@ -287,26 +319,27 @@ class Undo(
 
                     val be = loadBlockEntity(world, pos, entry) ?: return@let
                     world.setBlockEntity(be)
+                    if (isUndo) (world.getBlockEntity(pos) as? UndoableAccess)?.undoId = record.id
                     (world.getBlockEntity(pos) as? BlockEntityInterface)?.saveLastNbt()
                 }
             }
 
             if (isUndo) {
                 UndoMixinHelper.dropPendingTicks(world, record.data.keys.map(BlockPos::of), record.id)
+                UndoMixinHelper.suppressPlatePresses(world, restoredPositions)
             }
+            settleObservers(world, record, restoredPositions)
 
             //? if >=26.1 {
             movingRestores.forEach { (dest, _, _) ->
                 world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
                 restoredPositions += dest
-                changedPositions += dest
             }
             movingRestores.forEach { (dest, origin, carried) ->
                 world.modified(origin, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(origin, carried)
                 restoredPositions += origin
-                changedPositions += origin
             }
 
         
@@ -314,8 +347,7 @@ class Undo(
             UndoMixinHelper.freezePositions(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
-            rescheduleRestoredEntityTriggers(world, restoredPositions)
-            rearmObservers(world, restoredPositions, changedPositions)
+            rescheduleRestoredEntityTriggers(world, restoredPositions, record.id)
 
             restoredPositions
                 .filter { pos ->
@@ -416,13 +448,11 @@ class Undo(
                 world.modified(dest, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(dest, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())
                 restoredPositions += dest
-                changedPositions += dest
             }
             movingRestores.forEach { (dest, origin, carried) ->
                 world.modified(origin, com.github.unstoppalezzz.reden.utils.server.tickCount)
                 world.setBlockNoPP(origin, carried)
                 restoredPositions += origin
-                changedPositions += origin
             }
 
         
@@ -430,8 +460,7 @@ class Undo(
             UndoMixinHelper.freezePositions(
                 restoredPositions.filter { isUpdateSensitive(world.getBlockState(it)) }, now + 1, now
             )
-            rescheduleRestoredEntityTriggers(world, restoredPositions)
-            rearmObservers(world, restoredPositions, changedPositions)
+            rescheduleRestoredEntityTriggers(world, restoredPositions, record.id)
 
             restoredPositions
                 .filter { pos ->

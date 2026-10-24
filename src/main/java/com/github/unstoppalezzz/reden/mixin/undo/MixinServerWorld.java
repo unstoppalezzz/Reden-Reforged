@@ -15,8 +15,23 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.function.Predicate;
+
 @Mixin(ServerLevel.class)
 public abstract class MixinServerWorld {
+    @ModifyArg(
+            method = "clearBlockEvents",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lit/unimi/dsi/fastutil/objects/ObjectLinkedOpenHashSet;removeIf(Ljava/util/function/Predicate;)Z",
+                    remap = false
+            )
+    )
+    private Predicate<BlockEventData> filterClearBlockEvents(Predicate<BlockEventData> predicate) {
+        Predicate<BlockEventData> filter = UndoMixinHelper.blockEventClearFilter;
+        return filter == null ? predicate : predicate.and(filter);
+    }
+
     @ModifyArg(
             method = "blockEvent",
             at = @At(

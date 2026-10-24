@@ -29,7 +29,7 @@ public abstract class MixinPressurePlateBlock {
     @Shadow
     protected abstract int getSignalStrength(Level level, BlockPos pos);
 
-    @Inject(method = "entityInside", at = @At("HEAD"))
+    @Inject(method = "entityInside", at = @At("HEAD"), cancellable = true)
 //? if >= 1.21.10 {
     private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effectApplier, boolean bl, CallbackInfo ci) {
 //?} else if >= 1.21.5 {
@@ -37,12 +37,16 @@ public abstract class MixinPressurePlateBlock {
 *///?} else {
     /*private void onEntityInside(BlockState state, Level level, BlockPos pos, Entity entity, CallbackInfo ci) {
 *///?}
+        if (!level.isClientSide() && UndoMixinHelper.isPlatePressSuppressed(pos, entity)) {
+            ci.cancel();
+            return;
+        }
         if (entity instanceof ServerPlayer player) {
             boolean start = !level.isClientSide()
                 && getSignalForState(level.getBlockState(pos)) == 0
                 && getSignalStrength(level, pos) > 0;
             if (start) {
-                UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.USE_BLOCK);
+                UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.USE_BLOCK, UndoMixinHelper.PLATE_MERGE_TICKS);
             }
             reden$playerStarted.push(start);
             return;

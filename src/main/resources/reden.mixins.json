@@ -18,6 +18,7 @@
     "undo.MixinKillCommand",
     "undo.MixinLivingEntity",
     "undo.MixinMovingPiston",
+    "undo.MixinObserverBlock",
     "undo.MixinPistonEntity",
     "undo.MixinPlayer",
     "undo.MixinPlayerMode",
