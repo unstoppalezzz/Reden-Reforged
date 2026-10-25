@@ -390,6 +390,7 @@ class Undo(
 //?}
                         if (newEntity != null) {
                             newEntity.load(entry.nbt)
+                            if (isUndo) UndoMixinHelper.holdRestoredTntMinecart(newEntity)
                             redoRecord?.entities?.put(it.key, PlayerData.NotExistEntityEntry) // add entity info to redo record
                         }
                     }
@@ -419,6 +420,7 @@ class Undo(
                             entity.removeFreeWill()
                         }
                         entity.load(entry.nbt)
+                        if (isUndo) UndoMixinHelper.holdRestoredTntMinecart(entity)
                     }
                 }
             }

@@ -17,6 +17,7 @@
     "undo.MixinItemEntity",
     "undo.MixinKillCommand",
     "undo.MixinLivingEntity",
+    "undo.MixinMinecartTNT",
     "undo.MixinMovingPiston",
     "undo.MixinObserverBlock",
     "undo.MixinPistonEntity",

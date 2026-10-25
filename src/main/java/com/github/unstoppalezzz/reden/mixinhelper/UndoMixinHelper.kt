@@ -232,6 +232,26 @@ object UndoMixinHelper {
         }
     }
 
+    private val heldTntMinecarts = HashSet<java.util.UUID>()
+
+    fun holdRestoredTntMinecart(entity: Entity) {
+        //? if >= 1.21.11 {
+        if (entity !is net.minecraft.world.entity.vehicle.minecart.MinecartTNT) return
+        //?} else {
+        /*if (entity !is net.minecraft.world.entity.vehicle.MinecartTNT) return
+        *///?}
+        heldTntMinecarts += entity.uuid
+        if (isDebug) debugLogger("[tnt minecart] holding restored ${entity.uuid}, impact explosions suppressed")
+    }
+
+    @JvmStatic
+    fun isTntMinecartHeld(entity: Entity): Boolean = entity.uuid in heldTntMinecarts
+
+    @JvmStatic
+    fun releaseTntMinecart(entity: Entity) {
+        heldTntMinecarts -= entity.uuid
+    }
+
     private val observerFireTicks = HashMap<Long, Int>()
     private const val OBSERVER_FIRE_MEMORY_TICKS = 6000
 
@@ -307,6 +327,7 @@ object UndoMixinHelper {
         recordTags.clear()
         frozenPositions.clear()
         suppressedPlates.clear()
+        heldTntMinecarts.clear()
         observerFireTicks.clear()
         pendingLingerRecordId = null
         pendingLingerExpireTick = Int.MIN_VALUE
@@ -826,17 +847,30 @@ object UndoMixinHelper {
                 PlayerData.EntityEntryImpl(
                     entity.type,
                     //? if < 1.21.6 {
-                    /*CompoundTag().apply(entity::saveWithoutId),
+                    /*CompoundTag().apply(entity::saveWithoutId).also { defuseTntMinecart(entity, it) },
                     *///?} else {
                     net.minecraft.world.level.storage.TagValueOutput.createWithContext(
                         net.minecraft.util.ProblemReporter.DISCARDING,
                         entity.level().registryAccess()
-                    ).apply(entity::saveWithoutId).buildResult(),
+                    ).apply(entity::saveWithoutId).buildResult().also { defuseTntMinecart(entity, it) },
                     //?}
                     entity.blockPosition()
                 )
             }
         }
+    }
+
+    private fun defuseTntMinecart(entity: Entity, nbt: CompoundTag) {
+        //? if >= 1.21.11 {
+        if (entity !is net.minecraft.world.entity.vehicle.minecart.MinecartTNT) return
+        //?} else {
+        /*if (entity !is net.minecraft.world.entity.vehicle.MinecartTNT) return
+        *///?}
+        //? if >= 1.21.4 {
+        nbt.putInt("fuse", -1)
+        //?} else {
+        /*nbt.putInt("TNTFuse", -1)
+        *///?}
     }
 
     @JvmField var isInitializingEntity = false
