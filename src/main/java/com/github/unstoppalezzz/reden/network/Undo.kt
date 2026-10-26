@@ -3,6 +3,7 @@ package com.github.unstoppalezzz.reden.network
 import com.github.unstoppalezzz.reden.Reden
 import com.github.unstoppalezzz.reden.access.BlockEntityInterface
 import com.github.unstoppalezzz.reden.access.ChunkSectionInterface
+import com.github.unstoppalezzz.reden.access.LivingEntityAccess
 import com.github.unstoppalezzz.reden.access.PlayerData
 import com.github.unstoppalezzz.reden.access.PlayerData.Companion.data
 import com.github.unstoppalezzz.reden.access.UndoableAccess
@@ -419,8 +420,17 @@ class Undo(
                         if (entity is Mob) {
                             entity.removeFreeWill()
                         }
+                        val wasDying = entity is net.minecraft.world.entity.LivingEntity && entity.isDeadOrDying
                         entity.load(entry.nbt)
                         if (isUndo) UndoMixinHelper.holdRestoredTntMinecart(entity)
+                        if (wasDying) {
+                            val living = entity as net.minecraft.world.entity.LivingEntity
+                            debugLogger("undo entity ${it.key} was dying, clearing death state (restored health ${living.health})")
+                            if (living.health <= 0f) living.health = living.maxHealth
+                            (entity as LivingEntityAccess).clearDeath()
+                            world.chunkSource.removeEntity(entity)
+                            world.chunkSource.addEntity(entity)
+                        }
                     }
                 }
             }
