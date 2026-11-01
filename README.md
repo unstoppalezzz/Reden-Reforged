@@ -29,7 +29,7 @@ This fork exists because the original project has not been updated in over a yea
 
 ## Planed features
 
-- Backporting to more older versions starting with 1.20
+- Backporting to more older versions - next is 1.18 - 1.18.2
 
 ## Added features
 
@@ -38,6 +38,7 @@ This fork exists because the original project has not been updated in over a yea
  - added support for pressure plates and string updates
  - updated to latest version
  - survival undo
+ - backported to older versions
 
 ## Settings
 
