@@ -99,8 +99,9 @@ loom.runConfigs.all {
 
 loom.accessWidenerPath.set(project.file("src/main/resources/reden.accesswidener"))
 
-if (stonecutter.eval(mcVersion, ">=1.21.9 <26.1")) {
-    val chatMenuFiles = setOf("QuickMenuWidget", "ChatMixinHelper", "ChatHudMixin", "ChatScreenMixin")
+if (stonecutter.eval(mcVersion, "<1.20") || stonecutter.eval(mcVersion, ">=1.21.9 <26.1")) {
+    val chatMenuFiles = setOf("QuickMenuWidget", "ChatMixinHelper", "ChatHudMixin", "ChatScreenMixin") +
+        if (stonecutter.eval(mcVersion, "<1.19.1")) setOf("VisibleChatHudLineMixin") else emptySet()
     val isChatMenuFile = { f: java.io.File -> f.nameWithoutExtension in chatMenuFiles }
     tasks.named<JavaCompile>("compileClientJava") {
         exclude { !it.isDirectory && isChatMenuFile(it.file) }

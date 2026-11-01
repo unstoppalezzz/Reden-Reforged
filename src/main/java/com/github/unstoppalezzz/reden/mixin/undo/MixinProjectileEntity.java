@@ -7,7 +7,6 @@ import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.TraceableEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.HitResult;
@@ -17,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Projectile.class)
-public abstract class MixinProjectileEntity extends Entity implements UndoableAccess, TraceableEntity {
+public abstract class MixinProjectileEntity extends Entity implements UndoableAccess {
     public MixinProjectileEntity(EntityType<?> entityType, Level level) {
         super(entityType, level);
     }
@@ -27,7 +26,7 @@ public abstract class MixinProjectileEntity extends Entity implements UndoableAc
             at = @At("HEAD")
     )
     private void beforeHit(HitResult hitResult, CallbackInfo ci) {
-        if (this.getOwner() instanceof ServerPlayer) {
+        if (((Projectile) (Object) this).getOwner() instanceof ServerPlayer) {
             UndoMixinHelper.pushRecord(getUndoId$reden(), () -> "projectile hit/" + getId());
         }
     }
@@ -37,7 +36,7 @@ public abstract class MixinProjectileEntity extends Entity implements UndoableAc
             at = @At("RETURN")
     )
     private void afterHit(HitResult hitResult, CallbackInfo ci) {
-        if (this.getOwner() instanceof ServerPlayer) {
+        if (((Projectile) (Object) this).getOwner() instanceof ServerPlayer) {
             UndoMixinHelper.popRecord(() -> "projectile hit/" + getId());
         }
     }

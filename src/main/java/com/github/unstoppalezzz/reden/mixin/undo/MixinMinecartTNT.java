@@ -2,6 +2,7 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.multiver.MultiVersionKt;
 import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
@@ -25,14 +26,14 @@ public abstract class MixinMinecartTNT {
     @Inject(method = "destroy", at = @At("HEAD"))
     private void beforeDestroy(CallbackInfo ci) {
         Entity self = (Entity) (Object) this;
-        if (self.level().isClientSide()) return;
+        if (MultiVersionKt.getLevelCompat(self).isClientSide()) return;
         UndoMixinHelper.recordEntityState(self);
     }
 
     @Inject(method = "primeFuse", at = @At("HEAD"))
     private void beforePrime(CallbackInfo ci) {
         Entity self = (Entity) (Object) this;
-        if (self.level().isClientSide()) return;
+        if (MultiVersionKt.getLevelCompat(self).isClientSide()) return;
         UndoMixinHelper.releaseTntMinecart(self);
         long id = UndoMixinHelper.inheritedRecordId();
         if (id == 0) return;
@@ -41,11 +42,17 @@ public abstract class MixinMinecartTNT {
         ((UndoableAccess) this).setUndoId$reden(id);
     }
 
+    //? if >=1.19.4 {
     @Inject(method = "explode(Lnet/minecraft/world/damagesource/DamageSource;D)V", at = @At("HEAD"), cancellable = true)
     private void beforeExplode(DamageSource source, double power, CallbackInfo ci) {
+    //?} else {
+    /*@Inject(method = "explode(D)V", at = @At("HEAD"), cancellable = true)
+    private void beforeExplode(double power, CallbackInfo ci) {
+        DamageSource source = null;
+    *///?}
         pushedRecord$reden = false;
         Entity self = (Entity) (Object) this;
-        if (self.level().isClientSide()) return;
+        if (MultiVersionKt.getLevelCompat(self).isClientSide()) return;
         boolean impact = source == null || source.getDirectEntity() == null;
         if (impact && !((MinecartTNT) (Object) this).isPrimed() && UndoMixinHelper.isTntMinecartHeld(self)) {
             ci.cancel();
@@ -62,8 +69,13 @@ public abstract class MixinMinecartTNT {
         UndoMixinHelper.recordEntityState(self);
     }
 
+    //? if >=1.19.4 {
     @Inject(method = "explode(Lnet/minecraft/world/damagesource/DamageSource;D)V", at = @At("RETURN"))
     private void afterExplode(DamageSource source, double power, CallbackInfo ci) {
+    //?} else {
+    /*@Inject(method = "explode(D)V", at = @At("RETURN"))
+    private void afterExplode(double power, CallbackInfo ci) {
+    *///?}
         if (pushedRecord$reden) {
             pushedRecord$reden = false;
             UndoMixinHelper.popRecord(() -> "tnt minecart explode/" + ((Entity) (Object) this).getId());

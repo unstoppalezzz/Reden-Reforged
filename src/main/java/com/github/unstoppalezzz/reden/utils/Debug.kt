@@ -31,7 +31,11 @@ private val debugAppender by lazy {
         .withPolicy(OnStartupTriggeringPolicy.createPolicy(1))
         .withFilePattern("logs/reden-debug-%i.log.gz")
         .setName("RedenDebugAppender")
+        //? if >=1.19.3 {
         .setImmediateFlush(true)
+        //?} else {
+        /*.withImmediateFlush(true)
+        *///?}
         .build()
         .apply { start() }
 }

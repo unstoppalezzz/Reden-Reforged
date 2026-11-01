@@ -14,10 +14,12 @@ import org.spongepowered.asm.mixin.Mixin;
         net.minecraft.world.item.component.CustomData.class,
         net.minecraft.world.level.block.CrafterBlock.class,
         //?}
+        //? if >=1.19.4
         net.minecraft.world.level.block.DecoratedPotBlock.class,
         net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity.class,
         net.minecraft.world.level.block.entity.BaseContainerBlockEntity.class,
         net.minecraft.world.level.block.entity.BeehiveBlockEntity.class,
+        //? if >=1.20
         net.minecraft.world.level.block.entity.BrushableBlockEntity.class,
         net.minecraft.world.level.block.entity.CampfireBlockEntity.class,
         net.minecraft.world.level.block.entity.CommandBlockEntity.class,
@@ -37,6 +39,7 @@ import org.spongepowered.asm.mixin.Mixin;
         net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate.class
     },
     targets = {
+        //? if >=1.20
         "net.minecraft.world.level.block.entity.SculkSensorBlockEntity$VibrationUser"
     }
 )

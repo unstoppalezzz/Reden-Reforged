@@ -2,6 +2,7 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.multiver.MultiVersionKt;
 import com.github.unstoppalezzz.reden.utils.DebugKt;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -38,7 +39,7 @@ public abstract class MixinFallingBlockEntity extends Entity implements Undoable
     @Inject(method = "tick", at = @At("HEAD"))
     private void beforeTick(CallbackInfo ci) {
         pushedRecord$reden = false;
-        if (level().isClientSide()) return;
+        if (MultiVersionKt.getLevelCompat((Entity) (Object) this).isClientSide()) return;
         long id = getUndoId$reden();
         if (id == 0 || !UndoMixinHelper.INSTANCE.getUndoRecordsMap().containsKey(id)) return;
         UndoMixinHelper.pushRecord(id, () -> "falling block tick/" + getId());

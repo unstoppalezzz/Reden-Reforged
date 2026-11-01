@@ -19,7 +19,6 @@
     "undo.MixinLivingEntity",
     "undo.MixinMinecartTNT",
     "undo.MixinMovingPiston",
-    "undo.MixinObserverBlock",
     "undo.MixinPistonEntity",
     "undo.MixinPlayer",
     "undo.MixinPlayerMode",

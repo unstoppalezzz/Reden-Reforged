@@ -3,6 +3,8 @@ package com.github.unstoppalezzz.reden.access
 import com.github.unstoppalezzz.reden.Reden
 import com.github.unstoppalezzz.reden.undo.SurvivalUndo
 import com.github.unstoppalezzz.reden.utils.multiver.Text
+//? if <1.19.3
+/*import com.github.unstoppalezzz.reden.utils.multiver.sizeInBytes*/
 import net.minecraft.commands.arguments.selector.EntitySelector
 import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag

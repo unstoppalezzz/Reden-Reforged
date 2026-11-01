@@ -252,22 +252,6 @@ object UndoMixinHelper {
         heldTntMinecarts -= entity.uuid
     }
 
-    private val observerFireTicks = HashMap<Long, Int>()
-    private const val OBSERVER_FIRE_MEMORY_TICKS = 6000
-
-    @JvmStatic
-    fun observerFired(pos: BlockPos) {
-        observerFireTicks[pos.asLong()] = com.github.unstoppalezzz.reden.utils.server.tickCount
-    }
-
-    fun lastObserverFire(pos: BlockPos): Int? = observerFireTicks[pos.asLong()]
-
-    private fun forgetOldObserverFires() {
-        val now = com.github.unstoppalezzz.reden.utils.server.tickCount
-        if (now % 200 != 0) return
-        observerFireTicks.values.removeIf { now - it > OBSERVER_FIRE_MEMORY_TICKS }
-    }
-
     @JvmField
     var tickClearFilter: java.util.function.Predicate<Any>? = null
 
@@ -328,7 +312,6 @@ object UndoMixinHelper {
         frozenPositions.clear()
         suppressedPlates.clear()
         heldTntMinecarts.clear()
-        observerFireTicks.clear()
         pendingLingerRecordId = null
         pendingLingerExpireTick = Int.MIN_VALUE
         throttleTick = Int.MIN_VALUE
@@ -878,7 +861,7 @@ object UndoMixinHelper {
 
     fun snapshotPlayer(player: ServerPlayer) = PlayerData.KilledPlayer(
         player.saveWithoutId(CompoundTag()),
-        player.level().dimension(),
+        player.levelCompat.dimension(),
         player.x, player.y, player.z,
         player.yRot, player.xRot
     )
@@ -909,7 +892,6 @@ object UndoMixinHelper {
         ServerTickEvents.END_SERVER_TICK.register {
             refreshLingeringSurvivalRecord()
             releaseSteppedOffPlates()
-            forgetOldObserverFires()
         }
     }
 }

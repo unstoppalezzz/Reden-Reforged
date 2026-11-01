@@ -1,6 +1,8 @@
 package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.multiver.MultiVersionKt;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,7 +15,7 @@ public class MixinItemEntity {
     @Inject(method = "setItem", at = @At("RETURN"))
     private void afterSetItem(ItemStack itemStack, CallbackInfo ci) {
         ItemEntity self = (ItemEntity) (Object) this;
-        if (!self.level().isClientSide()) {
+        if (!MultiVersionKt.getLevelCompat(self).isClientSide()) {
             UndoMixinHelper.itemEntityStackSet(self);
         }
     }

@@ -23,6 +23,7 @@ import net.minecraft.world.level.block.EntityBlock
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.level.levelgen.Heightmap
+//? if >=1.20
 import net.minecraft.world.level.lighting.LightEngine
 import java.io.IOException
 import java.io.InputStream
@@ -45,7 +46,11 @@ val isOnServerThread: Boolean get() = ::server.isInitialized && server.isSameThr
 val serverTick: Int get() = if (::server.isInitialized) server.tickCount else 0
 
 fun Position.toBlockPos(): BlockPos {
+    //? if >=1.19.4 {
     return BlockPos.containing(this)
+    //?} else {
+    /*return BlockPos(net.minecraft.util.Mth.floor(x()), net.minecraft.util.Mth.floor(y()), net.minecraft.util.Mth.floor(z()))
+    *///?}
 }
 
 fun Player.sendMessage(s: String) {
@@ -83,9 +88,12 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
 
         //? if >= 1.21.2 {
         if (LightEngine.hasDifferentLightProperties(stateBefore, state)) {
-        //?} else {
+        //?} elif >= 1.20 {
         /*if (LightEngine.hasDifferentLightProperties(this@setBlockNoPP, pos, stateBefore, state)) {
+        *///?} else {
+        /*if (stateBefore != state) {
         *///?}
+            //? if >= 1.20
             skyLightSources.update(this, pos.x and 15, pos.y and 15, pos.z and 15)
             chunkSource.lightEngine.checkBlock(pos)
         }

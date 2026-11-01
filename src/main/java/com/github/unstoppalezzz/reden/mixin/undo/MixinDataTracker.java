@@ -1,6 +1,7 @@
 package com.github.unstoppalezzz.reden.mixin.undo;
 
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
+import com.github.unstoppalezzz.reden.utils.multiver.MultiVersionKt;
 import net.minecraft.network.syncher.EntityDataAccessor;
 //? if >=1.20.5
 import net.minecraft.network.syncher.SyncedDataHolder;
@@ -23,13 +24,21 @@ public class MixinDataTracker {
     /*private Entity entity;
     *///?}
 
+    //? if >=1.19.4 {
     @Inject(
             method = "set(Lnet/minecraft/network/syncher/EntityDataAccessor;Ljava/lang/Object;Z)V",
             at = @At("HEAD")
     )
     private <T> void beforeDataSet(EntityDataAccessor<T> entityDataAccessor, T object, boolean bl, CallbackInfo ci) {
+    //?} else {
+    /*@Inject(
+            method = "set(Lnet/minecraft/network/syncher/EntityDataAccessor;Ljava/lang/Object;)V",
+            at = @At("HEAD")
+    )
+    private <T> void beforeDataSet(EntityDataAccessor<T> entityDataAccessor, T object, CallbackInfo ci) {
+    *///?}
         if ((Object) entity instanceof Entity modifiedEntity) {
-            if (modifiedEntity.level().isClientSide()) return;
+            if (MultiVersionKt.getLevelCompat(modifiedEntity).isClientSide()) return;
             UndoMixinHelper.tryAddRelatedEntity(modifiedEntity);
         }
     }

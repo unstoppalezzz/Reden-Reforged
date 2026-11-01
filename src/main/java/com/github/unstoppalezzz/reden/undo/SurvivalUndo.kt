@@ -3,6 +3,8 @@ package com.github.unstoppalezzz.reden.undo
 import com.github.unstoppalezzz.reden.access.PlayerData
 import com.github.unstoppalezzz.reden.network.Undo
 import com.github.unstoppalezzz.reden.utils.multiver.Text
+//? if <1.19.3
+/*import com.github.unstoppalezzz.reden.utils.multiver.copyWithCount*/
 import com.github.unstoppalezzz.reden.utils.server
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.core.BlockPos
@@ -286,7 +288,9 @@ object SurvivalUndo {
     private fun ServerPlayer.serverWorld(): ServerLevel =
         //? if >=1.21.6 {
         level()
-        //?} else {
+        //?} elif >=1.20 {
         /*serverLevel()
+        *///?} else {
+        /*getLevel()
         *///?}
 }

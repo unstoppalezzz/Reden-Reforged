@@ -34,8 +34,10 @@ public class MixinCommands {
                     value = "INVOKE",
                     //? if >=1.20.3 {
                     target = "Lnet/minecraft/commands/Commands;executeCommandInContext(Lnet/minecraft/commands/CommandSourceStack;Ljava/util/function/Consumer;)V",
-                    //?} else {
+                    //?} elif >=1.19.1 {
                     /*target = "Lcom/mojang/brigadier/CommandDispatcher;execute(Lcom/mojang/brigadier/ParseResults;)I",
+                    *///?} else {
+                    /*target = "Lcom/mojang/brigadier/CommandDispatcher;execute(Lcom/mojang/brigadier/StringReader;Ljava/lang/Object;)I",
                     *///?}
                     shift = At.Shift.BEFORE
             )
@@ -43,11 +45,15 @@ public class MixinCommands {
     // performCommand returned int before 1.20.3
     //? if >=1.20.3 {
     private void onExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfo ci) {
-    //?} else {
+        CommandSourceStack source = parseResults.getContext().getSource();
+    //?} elif >=1.19.1 {
     /*private void onExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfoReturnable<Integer> ci) {
+        CommandSourceStack source = parseResults.getContext().getSource();
+    *///?} else {
+    /*private void onExecute(CommandSourceStack source, String command, CallbackInfoReturnable<Integer> ci) {
     *///?}
         if (reden$isTickCommand(command)) return;
-        if (parseResults.getContext().getSource().getEntity() instanceof ServerPlayer player) {
+        if (source.getEntity() instanceof ServerPlayer player) {
             UndoMixinHelper.playerStartRecording(player, PlayerData.UndoRecord.Cause.COMMAND);
         }
     }
@@ -58,8 +64,10 @@ public class MixinCommands {
                     value = "INVOKE",
                     //? if >=1.20.3 {
                     target = "Lnet/minecraft/commands/Commands;executeCommandInContext(Lnet/minecraft/commands/CommandSourceStack;Ljava/util/function/Consumer;)V",
-                    //?} else {
+                    //?} elif >=1.19.1 {
                     /*target = "Lcom/mojang/brigadier/CommandDispatcher;execute(Lcom/mojang/brigadier/ParseResults;)I",
+                    *///?} else {
+                    /*target = "Lcom/mojang/brigadier/CommandDispatcher;execute(Lcom/mojang/brigadier/StringReader;Ljava/lang/Object;)I",
                     *///?}
                     shift = At.Shift.AFTER
             )
@@ -67,11 +75,15 @@ public class MixinCommands {
     // performCommand returned int before 1.20.3
     //? if >=1.20.3 {
     private void afterExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfo ci) {
-    //?} else {
+        CommandSourceStack source = parseResults.getContext().getSource();
+    //?} elif >=1.19.1 {
     /*private void afterExecute(ParseResults<CommandSourceStack> parseResults, String command, CallbackInfoReturnable<Integer> ci) {
+        CommandSourceStack source = parseResults.getContext().getSource();
+    *///?} else {
+    /*private void afterExecute(CommandSourceStack source, String command, CallbackInfoReturnable<Integer> ci) {
     *///?}
         if (reden$isTickCommand(command)) return;
-        if (parseResults.getContext().getSource().getEntity() instanceof ServerPlayer player) {
+        if (source.getEntity() instanceof ServerPlayer player) {
             UndoMixinHelper.playerStopRecording(player);
         }
     }

@@ -11,7 +11,6 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.modified
 import com.github.unstoppalezzz.reden.undo.SurvivalUndo
 import com.github.unstoppalezzz.reden.utils.debugLogger
-import com.github.unstoppalezzz.reden.utils.isDebug
 import com.github.unstoppalezzz.reden.utils.multiver.*
 import com.github.unstoppalezzz.reden.utils.server
 import com.github.unstoppalezzz.reden.utils.setBlockNoPP
@@ -126,61 +125,20 @@ class Undo(
                 state.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED)
             ) state.setValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED, false) else state
 
-        private const val OBSERVER_PULSE_DELAY = 2
-        private const val OBSERVER_CLOCK_PERIOD = 4
-
-        private fun settleObservers(world: ServerLevel, record: PlayerData.UndoRedoRecord, restoredPositions: List<BlockPos>) {
-            val observerBlock = net.minecraft.world.level.block.Blocks.OBSERVER
-            val facingProp = net.minecraft.world.level.block.ObserverBlock.FACING
-            val poweredProp = net.minecraft.world.level.block.state.properties.BlockStateProperties.POWERED
-            fun wasPowered(pos: BlockPos) = record.data[pos.asLong()]?.state
-                ?.let { it.block is net.minecraft.world.level.block.ObserverBlock && it.getValue(poweredProp) } == true
-            fun hasTick(pos: BlockPos) = world.blockTicks.hasScheduledTick(pos, observerBlock)
-
-            val observers = restoredPositions.filter { world.getBlockState(it).block is net.minecraft.world.level.block.ObserverBlock }
-            val clocks = LinkedHashSet<Pair<BlockPos, BlockPos>>()
-            observers.forEach { pos ->
-                val facing = world.getBlockState(pos).getValue(facingProp)
-                val partner = pos.relative(facing)
-                val partnerState = world.getBlockState(partner)
-                if (partnerState.block is net.minecraft.world.level.block.ObserverBlock && partnerState.getValue(facingProp) == facing.opposite) {
-                    clocks += if (pos.asLong() < partner.asLong()) pos to partner else partner to pos
-                }
+        private fun spawnWithUuid(type: net.minecraft.world.entity.EntityType<*>, world: ServerLevel, uuid: java.util.UUID, pos: BlockPos) =
+            //? if < 1.19.3 {
+            /*type.create(world)?.also { created ->
+                created.uuid = uuid
+                created.moveTo(pos.x + 0.5, pos.y.toDouble(), pos.z + 0.5, 0f, 0f)
+                world.addFreshEntity(created)
             }
-            fun wasRecordedObserver(pos: BlockPos) =
-                record.data[pos.asLong()]?.state?.block is net.minecraft.world.level.block.ObserverBlock
-            val running = clocks.filter { (a, b) ->
-                wasPowered(a) || wasPowered(b) || hasTick(a) || hasTick(b) || (wasRecordedObserver(a) && wasRecordedObserver(b))
-            }
-            val keep = running.flatMap { listOf(it.first, it.second) }.toSet()
-
-            observers.filter { it !in keep }
-                .forEach { world.blockTicks.clearArea(net.minecraft.world.level.levelgen.structure.BoundingBox(it)) }
-
-            val restart = running.filter { (a, b) -> !hasTick(a) && !hasTick(b) }
-            if (restart.isEmpty()) return
-            val now = com.github.unstoppalezzz.reden.utils.server.tickCount
-            UndoMixinHelper.pushRecord(record.id) { "restart observer clocks" }
-            try {
-                restart.forEach { (a, b) ->
-                    val fireA = UndoMixinHelper.lastObserverFire(a)
-                    val fireB = UndoMixinHelper.lastObserverFire(b)
-                    val (target, fired) = when {
-                        fireA != null && (fireB == null || fireA >= fireB) -> a to fireA
-                        fireB != null -> b to fireB
-                        else -> a to now + OBSERVER_PULSE_DELAY
-                    }
-                    val delay = Math.floorMod(fired - now - OBSERVER_PULSE_DELAY, OBSERVER_CLOCK_PERIOD) + OBSERVER_PULSE_DELAY
-                    if (isDebug) debugLogger(
-                        "[undo] restarting observer clock ${a.toShortString()} <-> ${b.toShortString()}: " +
-                            "kicking ${target.toShortString()} in $delay ticks (beat of tick $fired)"
-                    )
-                    world.scheduleTick(target, observerBlock, delay)
-                }
-            } finally {
-                UndoMixinHelper.popRecord { "restart observer clocks" }
-            }
-        }
+            *///?} elif < 1.20.5 {
+            /*type.spawn(world, null as CompoundTag?, { it.uuid = uuid }, pos, net.minecraft.world.entity.MobSpawnType.COMMAND, false, false)
+            *///?} elif <= 1.21.1 {
+            /*type.spawn(world, { it.uuid = uuid }, pos, net.minecraft.world.entity.MobSpawnType.COMMAND, false, false)
+            *///?} else {
+            type.spawn(world, { it.uuid = uuid }, pos, net.minecraft.world.entity.EntitySpawnReason.COMMAND, false, false)
+            //?}
 
         private fun destroyPrimedTntAt(world: ServerLevel, pos: BlockPos) {
             val center = net.minecraft.world.phys.Vec3.atCenterOf(pos)
@@ -329,7 +287,6 @@ class Undo(
                 UndoMixinHelper.dropPendingTicks(world, record.data.keys.map(BlockPos::of), record.id)
                 UndoMixinHelper.suppressPlatePresses(world, restoredPositions)
             }
-            settleObservers(world, record, restoredPositions)
 
             //? if >=26.1 {
             movingRestores.forEach { (dest, _, _) ->
@@ -378,17 +335,7 @@ class Undo(
                         val entry = it.value
                         if (entry.nbt.size() == 0) return@forEach
                         debugLogger("undo entity ${it.key} spawning")
-                        val newEntity = entry.entity!!.spawn(world,
-//? if < 1.20.5
-                        /*null as CompoundTag?,*/
-                        { newEntity ->
-                            newEntity.uuid = it.key
-                        },
-//? if <= 1.21.1 {
-                        /*entry.pos, net.minecraft.world.entity.MobSpawnType.COMMAND, false, false)
-*///?} else {
-                        entry.pos, net.minecraft.world.entity.EntitySpawnReason.COMMAND, false, false)
-//?}
+                        val newEntity = spawnWithUuid(entry.entity!!, world, it.key, entry.pos)
                         if (newEntity != null) {
                             newEntity.load(entry.nbt)
                             if (isUndo) UndoMixinHelper.holdRestoredTntMinecart(newEntity)
@@ -551,7 +498,9 @@ class Undo(
         *///?}
 
         private fun ServerPlayer.serverLevelCompat(): ServerLevel =
-            //? if <= 1.21.5
+            //? if < 1.20
+            /*getLevel()*/
+            //? if >= 1.20 <= 1.21.5
             /*serverLevel()*/
             //? if >= 1.21.6
             level()
@@ -636,11 +585,7 @@ class Undo(
                 // 不取消跟踪会导致undo的更改也被记录，边读边写异常
                 UndoMixinHelper.undoRecords.clear()
             }
-            val world =
-                //? if <= 1.21.5
-                /*player.serverLevel()*/
-                //? if >= 1.21.6
-                player.level()
+            val world = player.serverLevelCompat()
             val survival = !player.isCreative
             when (packet.status) {
                 0 -> view.undo.lastValid()?.let { undoRecord ->

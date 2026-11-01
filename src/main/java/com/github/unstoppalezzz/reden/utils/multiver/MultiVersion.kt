@@ -57,6 +57,13 @@ fun Player.sendSystemMessage(text: Component) {
     *///?}
 }
 
+val net.minecraft.world.entity.Entity.levelCompat: net.minecraft.world.level.Level
+    //? if >=1.20 {
+    get() = level()
+    //?} else {
+    /*get() = level
+    *///?}
+
 //? if >=1.21.6 {
 fun Entity.saveWithoutId(nbt: CompoundTag): CompoundTag {
     val vo = TagValueOutput.createWithContext(
@@ -76,3 +83,13 @@ fun Entity.load(nbt: CompoundTag) {
     load(vi)
 }
 //?}
+
+//? if <1.19.3 {
+/*fun net.minecraft.world.item.ItemStack.copyWithCount(count: Int) = copy().also { it.count = count }
+
+fun net.minecraft.nbt.Tag.sizeInBytes(): Int {
+    val out = java.io.ByteArrayOutputStream()
+    write(java.io.DataOutputStream(out))
+    return out.size()
+}
+*///?}
