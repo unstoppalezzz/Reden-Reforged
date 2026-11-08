@@ -3,6 +3,7 @@ package com.github.unstoppalezzz.reden.mixin.undo;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+//? if >=1.19
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.DispenserBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -32,7 +33,11 @@ public class MixinDispenserBlock {
     }
 
     @Inject(method = "tick", at = @At("HEAD"))
+    //? if >=1.19 {
     private void onTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random, CallbackInfo ci) {
+    //?} else {
+    /*private void onTick(BlockState state, ServerLevel level, BlockPos pos, java.util.Random random, CallbackInfo ci) {
+    *///?}
         boolean pushed = false;
         if (UndoMixinHelper.INSTANCE.getRecording() == null) {
             long id = UndoMixinHelper.taggedRecordId(pos);
@@ -45,7 +50,11 @@ public class MixinDispenserBlock {
     }
 
     @Inject(method = "tick", at = @At("RETURN"))
+    //? if >=1.19 {
     private void afterTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random, CallbackInfo ci) {
+    //?} else {
+    /*private void afterTick(BlockState state, ServerLevel level, BlockPos pos, java.util.Random random, CallbackInfo ci) {
+    *///?}
         if (!reden$pushed.isEmpty() && reden$pushed.pop()) {
             UndoMixinHelper.popRecord(() -> reden$reason(pos));
         }

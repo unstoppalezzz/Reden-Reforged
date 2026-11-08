@@ -368,6 +368,7 @@ class Undo(
                             entity.removeFreeWill()
                         }
                         val wasDying = entity is net.minecraft.world.entity.LivingEntity && entity.isDeadOrDying
+                        (entity as? com.github.unstoppalezzz.reden.access.CreeperAccess)?.clearFuse()
                         entity.load(entry.nbt)
                         if (isUndo) UndoMixinHelper.holdRestoredTntMinecart(entity)
                         if (wasDying) {

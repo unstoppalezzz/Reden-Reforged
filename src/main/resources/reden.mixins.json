@@ -8,6 +8,7 @@
     "undo.MixinBlockEntity",
     "undo.MixinBlockEvent",
     "undo.MixinCommands",
+    "undo.MixinCreeper",
     "undo.MixinDataTracker",
     "undo.MixinDetectorRailBlock",
     "undo.MixinDispenserBlock",

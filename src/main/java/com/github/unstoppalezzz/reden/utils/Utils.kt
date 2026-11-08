@@ -1,5 +1,7 @@
 package com.github.unstoppalezzz.reden.utils
 
+//? if <1.19
+/*import com.github.unstoppalezzz.reden.utils.multiver.sendSystemMessage*/
 import com.github.unstoppalezzz.reden.Reden
 import com.github.unstoppalezzz.reden.exceptions.RedenException
 import com.github.unstoppalezzz.reden.utils.multiver.Text

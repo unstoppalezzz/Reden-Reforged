@@ -758,7 +758,12 @@ object UndoMixinHelper {
     }
 
     @JvmStatic
-    fun playerStopRecording(player: ServerPlayer) {
+    fun playerStopRecording(player: ServerPlayer) = playerStopRecording(player, false)
+
+    @JvmStatic
+    fun playerStopAttackRecording(player: ServerPlayer) = playerStopRecording(player, true)
+
+    private fun playerStopRecording(player: ServerPlayer, discardNonLethalHit: Boolean) {
         val playerView = player.data()
         if (playerView.isRecording) {
             playerView.isRecording = false
@@ -766,7 +771,7 @@ object UndoMixinHelper {
             stopping?.let { SurvivalUndo.stopRecord(player, it) }
             val stoppingRecordId = stopping?.id
             popRecord { "player recording/${player.scoreboardName}/${stopping?.cause}" }
-            if (stopping != null && stopping.isNoOp()) {
+            if (stopping != null && (stopping.isNoOp() || (discardNonLethalHit && stopping.isNonLethalHit(player)))) {
                 removeRecord(stopping.id)
                 playerView.undo.remove(stopping)
                 if (isDebug) debugLogger("[record] discarded empty record ${stopping.id} cause=${stopping.cause}")
@@ -797,6 +802,15 @@ object UndoMixinHelper {
     }
 
     private fun PlayerData.UndoRecord.isNoOp() = data.isEmpty() && entities.isEmpty() && killedPlayers.isEmpty()
+
+    private fun PlayerData.UndoRecord.isNonLethalHit(player: ServerPlayer): Boolean {
+        if (data.isNotEmpty() || killedPlayers.isNotEmpty()) return false
+        val level = player.levelCompat as ServerLevel
+        return entities.keys.all { uuid ->
+            val entity = level.getEntity(uuid) as? net.minecraft.world.entity.LivingEntity
+            entity != null && !entity.isDeadOrDying && !entity.isRemoved
+        }
+    }
 
     @JvmStatic
     fun playerStopRecordingUnlessSurvival(player: ServerPlayer) {

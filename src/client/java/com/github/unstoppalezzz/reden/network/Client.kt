@@ -10,7 +10,7 @@ import net.minecraft.network.chat.Component
 import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationNetworking
 
 // @formatter:off
-//? if > 1.21.1 {
+//? if > 1.21.1 || <1.19 {
 import com.github.unstoppalezzz.reden.utils.multiver.sendSystemMessage
 //?}
 

@@ -3,6 +3,8 @@ package com.github.unstoppalezzz.reden.malilib
 import com.github.unstoppalezzz.reden.Reden
 import com.github.unstoppalezzz.reden.network.Undo
 import com.github.unstoppalezzz.reden.utils.multiver.Text
+//? if <1.19
+/*import com.github.unstoppalezzz.reden.utils.multiver.sendSystemMessage*/
 import com.github.unstoppalezzz.reden.utils.red
 import fi.dy.masa.malilib.config.options.ConfigHotkey
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking

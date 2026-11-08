@@ -23,12 +23,16 @@ import java.net.URI
 //?}
 
 object Text {
-    fun literal(text: String) = Component.literal(text)
+    //? if >=1.19 {
+    fun literal(text: String): MutableComponent = Component.literal(text)
+    fun empty(): MutableComponent = Component.empty()
+    fun translatable(key: String, vararg args: Any): MutableComponent = Component.translatable(key, *args)
+    //?} else {
+    /*fun literal(text: String): MutableComponent = net.minecraft.network.chat.TextComponent(text)
+    fun empty(): MutableComponent = net.minecraft.network.chat.TextComponent("")
+    fun translatable(key: String, vararg args: Any): MutableComponent = net.minecraft.network.chat.TranslatableComponent(key, *args)
+    *///?}
     fun of(text: String?) = Component.nullToEmpty(text)
-    fun empty() = Component.empty()
-    fun translatable(key: String, vararg args: Any): Component {
-        return Component.translatable(key, *args)
-    }
 }
 
 //? if >=26.1 {
@@ -44,7 +48,7 @@ fun MutableComponent.hoverShowText(text: String) = apply {
         //? if >=1.21.5 {
         style.withHoverEvent(HoverEvent.ShowText(Component.literal(text)))
         //?} else {
-        /*style.withHoverEvent(HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(text)))
+        /*style.withHoverEvent(HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal(text)))
         *///?}
     }
 }
