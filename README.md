@@ -29,7 +29,7 @@ This fork exists because the original project has not been updated in over a yea
 
 ## Planed features
 
-- Backporting to more older versions - next is 1.18 - 1.18.2
+- Backporting to more older versions - next is 1.17
 
 ## Added features
 
