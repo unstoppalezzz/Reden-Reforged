@@ -1,6 +1,6 @@
 # Reden-Reforged
 
-[![CurseForge Downloads](https://cf.way2muchnoise.eu/1693182.svg)](https://www.curseforge.com/minecraft/mc-mods/reden-reforged)
+<img src="https://img.shields.io/modrinth/dt/IWjeuuqS?label=&logo=modrinth&logoColor=1bd96a&labelColor=333333&color=1bd96a&style=flat" height="34" alt="Modrinth downloads"> [![CurseForge Downloads](https://cf.way2muchnoise.eu/1693182.svg)](https://www.curseforge.com/minecraft/mc-mods/reden-reforged)
 
 **Redstone EDEN, reforged.**  
 Undo & Redo | Minecraft Debugging | Redstone Version Control
