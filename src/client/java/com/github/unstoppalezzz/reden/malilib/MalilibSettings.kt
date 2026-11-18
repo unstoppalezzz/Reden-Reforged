@@ -44,7 +44,12 @@ private val KEYBOARD_LAYOUT: String = run {
 
 private val DEFAULT_HOTKEYS: Map<String, Map<String, String>> = try {
     Reden::class.java.getResourceAsStream("/assets/reden-reforged/default_hotkeys.json")!!.reader().use { reader ->
-        JsonParser.parseReader(reader).asJsonObject.entrySet().associate { (layout, keys) ->
+        //? if >=1.18 {
+        JsonParser.parseReader(reader)
+        //?} else {
+        /*JsonParser().parse(reader)
+        *///?}
+            .asJsonObject.entrySet().associate { (layout, keys) ->
             layout to keys.asJsonObject.entrySet().associate { it.key to it.value.asString }
         }
     }

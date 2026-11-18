@@ -5,6 +5,7 @@ package com.github.unstoppalezzz.reden.utils
 import com.github.unstoppalezzz.reden.Reden
 import com.github.unstoppalezzz.reden.exceptions.RedenException
 import com.github.unstoppalezzz.reden.utils.multiver.Text
+import com.github.unstoppalezzz.reden.utils.multiver.sectionAt
 import com.google.gson.Gson
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import net.fabricmc.api.EnvType
@@ -68,7 +69,7 @@ fun Level.setBlockNoPP(pos: BlockPos, state: BlockState, flags: Int = Block.UPDA
     if (stateBefore.hasBlockEntity()) {
         removeBlockEntity(pos)
     }
-    getChunk(pos).run { getSection(getSectionIndex(pos.y)) }
+    getChunk(pos).sectionAt(pos.y)
         .setBlockState(pos.x and 15, pos.y and 15, pos.z and 15, state, false)
     getChunkAt(pos).run {
         //? if >= 26.1 {

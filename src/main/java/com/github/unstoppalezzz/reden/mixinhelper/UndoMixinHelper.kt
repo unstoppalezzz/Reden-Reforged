@@ -273,12 +273,17 @@ object UndoMixinHelper {
         blockEventClearFilter = java.util.function.Predicate { event ->
             val id = (event as UndoableAccess).undoId
             (id >= minUndoId).also {
-                if (it && isDebug) debugLogger("[undo] dropping pending block event at ${event.pos().toShortString()} block=${event.block()} (undoId=$id)")
+                if (it && isDebug) debugLogger("[undo] dropping pending block event at ${event.posCompat.toShortString()} block=${event.blockCompat} (undoId=$id)")
             }
         }
         try {
+            //? if >=1.18 {
             world.blockTicks.clearArea(box)
             world.fluidTicks.clearArea(box)
+            //?} else {
+            /*(world.blockTicks as com.github.unstoppalezzz.reden.access.TickListAccess).clearArea(box)
+            (world.liquidTicks as com.github.unstoppalezzz.reden.access.TickListAccess).clearArea(box)
+            *///?}
             world.clearBlockEvents(box)
         } finally {
             tickClearFilter = null
@@ -650,7 +655,7 @@ object UndoMixinHelper {
         /*isUnsaved = true*/
         //? if >= 1.21.2
         markUnsaved()
-        getSection(getSectionIndex(pos.y)) as ChunkSectionInterface
+        sectionAt(pos.y) as ChunkSectionInterface
     }.setModifyTime(pos, time)
 
     @JvmStatic

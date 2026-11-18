@@ -112,7 +112,7 @@ class Undo(
             if (triggers.isEmpty()) return
             UndoMixinHelper.pushRecord(recordId) { "recheck entity triggers" }
             try {
-                triggers.forEach { pos -> world.scheduleTick(pos, world.getBlockState(pos).block, ENTITY_TRIGGER_RECHECK_DELAY) }
+                triggers.forEach { pos -> world.scheduleBlockTickCompat(pos, world.getBlockState(pos).block, ENTITY_TRIGGER_RECHECK_DELAY) }
             } finally {
                 UndoMixinHelper.popRecord { "recheck entity triggers" }
             }
@@ -153,7 +153,7 @@ class Undo(
         }
 
         private fun isStale(world: ServerLevel, pos: BlockPos, entry: PlayerData.Entry, isUndo: Boolean): Boolean {
-            val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
+            val sec = world.getChunk(pos).sectionAt(pos.y) as ChunkSectionInterface
             if (!isUndo) return false
             val modifyTime = sec.getModifyTime(pos)
             if (modifyTime == 0 && sec.createdTick() > entry.time) return false
@@ -215,7 +215,7 @@ class Undo(
                 val pos = BlockPos.of(posLong)
                 val entry = unpowerObserver(recorded.state).let { if (it === recorded.state) recorded else recorded.copy(state = it) }
                 val currentState = world.getBlockState(pos)
-                val sec = world.getChunk(pos).run { getSection(getSectionIndex(pos.y)) } as ChunkSectionInterface
+                val sec = world.getChunk(pos).sectionAt(pos.y) as ChunkSectionInterface
                 if (isStale(world, pos, entry, isUndo)) {
                     skippedStale += pos
                     debugLogger(

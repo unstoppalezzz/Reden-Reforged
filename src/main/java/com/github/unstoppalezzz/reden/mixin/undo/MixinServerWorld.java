@@ -4,6 +4,7 @@ import com.github.unstoppalezzz.reden.access.PlayerData;
 import com.github.unstoppalezzz.reden.access.UndoableAccess;
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper;
 import com.github.unstoppalezzz.reden.utils.DebugKt;
+import com.github.unstoppalezzz.reden.utils.multiver.MultiVersionKt;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -47,8 +48,8 @@ public abstract class MixinServerWorld {
                 access.setUndoId$reden(recording.getId());
             }
             if (DebugKt.isDebug() && event instanceof BlockEventData data) {
-                DebugKt.debugLogger.invoke("[block event] queued at " + data.pos().toShortString() + " block=" + data.block()
-                        + " params=" + data.paramA() + "/" + data.paramB()
+                DebugKt.debugLogger.invoke("[block event] queued at " + MultiVersionKt.getPosCompat(data).toShortString() + " block=" + MultiVersionKt.getBlockCompat(data)
+                        + " params=" + MultiVersionKt.getParamACompat(data) + "/" + MultiVersionKt.getParamBCompat(data)
                         + " record=" + (recording != null ? recording.getId() : 0)
                         + " inherited=" + UndoMixinHelper.inheritedRecordId());
             }
@@ -67,10 +68,10 @@ public abstract class MixinServerWorld {
     private void beforeProcessBlockEvent(BlockEventData event, CallbackInfoReturnable<Boolean> cir) {
         long undoId = ((UndoableAccess) event).getUndoId$reden();
         long attributed = UndoMixinHelper.attributedRecordId(undoId);
-        UndoMixinHelper.pushRecord(attributed, () -> "block event/" + event.pos().toShortString());
+        UndoMixinHelper.pushRecord(attributed, () -> "block event/" + MultiVersionKt.getPosCompat(event).toShortString());
         if (DebugKt.isDebug()) {
-            DebugKt.debugLogger.invoke("[block event] running at " + event.pos().toShortString() + " block=" + event.block()
-                    + " params=" + event.paramA() + "/" + event.paramB()
+            DebugKt.debugLogger.invoke("[block event] running at " + MultiVersionKt.getPosCompat(event).toShortString() + " block=" + MultiVersionKt.getBlockCompat(event)
+                    + " params=" + MultiVersionKt.getParamACompat(event) + "/" + MultiVersionKt.getParamBCompat(event)
                     + " undoId=" + undoId + " attributed=" + attributed
                     + " recordExists=" + (UndoMixinHelper.INSTANCE.getRecording() != null));
         }
@@ -85,7 +86,7 @@ public abstract class MixinServerWorld {
             )
     )
     private void afterProcessBlockEvent(BlockEventData event, CallbackInfoReturnable<Boolean> cir) {
-        UndoMixinHelper.popRecord(() -> "block event/" + event.pos().toShortString());
+        UndoMixinHelper.popRecord(() -> "block event/" + MultiVersionKt.getPosCompat(event).toShortString());
     }
 
     @Inject(

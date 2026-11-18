@@ -23,7 +23,7 @@ This fork exists because the original project has not been updated in over a yea
 - [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin)
 
 ## Mod Platforms
-- [modrinth](https://modrinth.com/mod/reden-reforged) still under review
+- [modrinth](https://modrinth.com/mod/reden-reforged) 
 - [curseforge](https://www.curseforge.com/minecraft/mc-mods/reden-reforged)  
 ## Known issues
 

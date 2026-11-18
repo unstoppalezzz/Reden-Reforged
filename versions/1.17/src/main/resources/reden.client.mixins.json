@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "package": "com.github.unstoppalezzz.reden.mixin.client",
+  "compatibilityLevel": "JAVA_16",
+  "client": [
+    "keybind.MixinKeyMapping",
+    "malilib.IMixinGuiListBase",
+    "malilib.IMixinWidgetListBase"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "noTimeOut.MixinReadTimeoutHandler"
+  ]
+}

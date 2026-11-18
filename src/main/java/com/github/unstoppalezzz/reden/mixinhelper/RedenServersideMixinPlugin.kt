@@ -90,11 +90,7 @@ class RedenServersideMixinPlugin : IExtension,  IMixinConfigPlugin {
                     val prev = it.previous
                     val invoke = MethodInsnNode(
                         Opcodes.INVOKESTATIC,
-                        //? if >=26.1 {
                         "com/github/unstoppalezzz/reden/mixinhelper/UndoMixinHelper",
-                        //?} else {
-                        /*"com.github.unstoppalezzz/reden/mixinhelper/UndoMixinHelper",
-                        *///?}
                         "monitorSetBlock",
                         "(Ljava/lang/Object;)V",
                         false

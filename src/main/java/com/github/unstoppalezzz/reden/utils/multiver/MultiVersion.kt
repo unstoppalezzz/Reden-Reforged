@@ -97,3 +97,43 @@ fun net.minecraft.nbt.Tag.sizeInBytes(): Int {
     return out.size()
 }
 *///?}
+
+fun net.minecraft.world.level.chunk.ChunkAccess.sectionAt(y: Int): net.minecraft.world.level.chunk.LevelChunkSection =
+    //? if >=1.18 {
+    getSection(getSectionIndex(y))
+    //?} else {
+    /*getOrCreateSection(getSectionIndex(y))
+    *///?}
+
+val net.minecraft.world.level.BlockEventData.posCompat: net.minecraft.core.BlockPos
+    //? if >=1.18 {
+    get() = pos()
+    //?} else {
+    /*get() = getPos()
+    *///?}
+val net.minecraft.world.level.BlockEventData.blockCompat: net.minecraft.world.level.block.Block
+    //? if >=1.18 {
+    get() = block()
+    //?} else {
+    /*get() = getBlock()
+    *///?}
+val net.minecraft.world.level.BlockEventData.paramACompat: Int
+    //? if >=1.18 {
+    get() = paramA()
+    //?} else {
+    /*get() = getParamA()
+    *///?}
+val net.minecraft.world.level.BlockEventData.paramBCompat: Int
+    //? if >=1.18 {
+    get() = paramB()
+    //?} else {
+    /*get() = getParamB()
+    *///?}
+
+fun net.minecraft.server.level.ServerLevel.scheduleBlockTickCompat(pos: net.minecraft.core.BlockPos, block: net.minecraft.world.level.block.Block, delay: Int) {
+    //? if >=1.18 {
+    scheduleTick(pos, block, delay)
+    //?} else {
+    /*blockTicks.scheduleTick(pos, block, delay)
+    *///?}
+}

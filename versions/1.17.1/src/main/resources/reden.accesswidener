@@ -1,0 +1,4 @@
+accessWidener	v1  named
+accessible field net/minecraft/commands/arguments/selector/EntitySelector ANY_TYPE Lnet/minecraft/world/level/entity/EntityTypeTest;
+extendable class net/minecraft/world/level/BlockEventData
+accessible field net/minecraft/client/gui/components/ChatComponent trimmedMessages Ljava/util/List;

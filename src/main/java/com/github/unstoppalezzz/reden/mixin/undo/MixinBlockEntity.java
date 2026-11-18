@@ -37,7 +37,9 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
     /*// data components don't exist before 1.20.5
     @Unique private final Object components = null;
     *///?}
-    //? if < 1.20.5 {
+    //? if < 1.18 {
+    /*@Shadow public abstract CompoundTag save(CompoundTag tag);
+    *///?} elif < 1.20.5 {
     /*@Shadow public abstract CompoundTag saveWithId();
     *///?} elif < 1.21.6 {
     /*@Shadow public abstract CompoundTag saveWithId(HolderLookup.Provider provider);
@@ -82,8 +84,10 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
             lastSavedNbt = vo.buildResult();
 *///?} elif >= 1.20.5 {
             /*lastSavedNbt = this.saveWithId(level.registryAccess());
-*///?} else {
+*///?} elif >= 1.18 {
             /*lastSavedNbt = this.saveWithId();
+*///?} else {
+            /*lastSavedNbt = this.save(new CompoundTag());
 *///?}
             DebugKt.debugLogger.invoke("saved lastNBT at " + worldPosition.toShortString() + ", cause=" + cause + ", " + lastSavedNbt);
         }
@@ -176,8 +180,10 @@ public abstract class MixinBlockEntity implements BlockEntityInterface {
                 lastSavedNbt = vo.buildResult();
 *///?} elif >= 1.20.5 {
                 /*lastSavedNbt = this.saveWithId(level.registryAccess());
-*///?} else {
+*///?} elif >= 1.18 {
                 /*lastSavedNbt = this.saveWithId();
+*///?} else {
+                /*lastSavedNbt = this.save(new CompoundTag());
 *///?}
                 DebugKt.debugLogger.invoke("init: saved lastNBT at " + worldPosition.toShortString() + ", cause=reden init, " + lastSavedNbt);
             }

@@ -1,6 +1,4 @@
-# 0.11.4
+# 0.11.7
 
-- added survival mode support
-- added 1.20 support
-- fixed old redstone ticks activating after undo
-- added "reden.undo.creative" and "reden.undo.survival" permission for servers
+- bug fixes
+- added 1.18 - 17 support

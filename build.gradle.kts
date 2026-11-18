@@ -32,7 +32,17 @@ version = "${mod.version}+$mcVersion"
 group = mod.group
 base { archivesName.set("reden") }
 
-loom.splitEnvironmentSourceSets()
+if (stonecutter.eval(mcVersion, "<1.18")) {
+    val main = sourceSets["main"]
+    val client = sourceSets.create("client") {
+        compileClasspath += main.compileClasspath + main.output
+        runtimeClasspath += main.runtimeClasspath + main.output
+    }
+    tasks.named<Jar>("jar") { from(client.output) }
+    tasks.withType<Jar>().matching { it.name == "sourcesJar" }.configureEach { from(client.allSource) }
+} else {
+    loom.splitEnvironmentSourceSets()
+}
 loom.mods.create("template") {
     sourceSet(sourceSets["main"])
     sourceSet(sourceSets["client"])
@@ -77,13 +87,15 @@ dependencies {
 
     modImpl("net.fabricmc:fabric-loader:${property("deps.fabric_loader")}")
     modImpl("net.fabricmc:fabric-language-kotlin:${property("deps.fabric_language_kotlin")}")
-    modImpl("io.wispforest:owo-lib:${property("deps.owo")}") {
-        exclude(group = "net.fabricmc.fabric-api")
-        exclude(group = "it.unimi.dsi")
+    if (stonecutter.eval(mcVersion, ">=1.18")) {
+        modImpl("io.wispforest:owo-lib:${property("deps.owo")}") {
+            exclude(group = "net.fabricmc.fabric-api")
+            exclude(group = "it.unimi.dsi")
+        }
     }
     modImpl("net.fabricmc.fabric-api:fabric-api:${property("deps.fabric_api")}")
 
-    modImpl("maven.modrinth:malilib:${property("deps.malilib")}")
+    modImpl("maven.modrinth:malilib:${findProperty("deps.malilib_maven") ?: property("deps.malilib")}")
     modImpl("maven.modrinth:litematica:${property("deps.litematica")}")
 }
 
@@ -112,13 +124,14 @@ if (stonecutter.eval(mcVersion, "<1.20") || stonecutter.eval(mcVersion, ">=1.21.
     }
 }
 
-val java = if (stonecutter.eval(mcVersion, ">=26.1")) 25 else if (stonecutter.eval(mcVersion, ">=1.20.5")) 21 else 17
+val java = if (stonecutter.eval(mcVersion, ">=26.1")) 25 else if (stonecutter.eval(mcVersion, ">=1.20.5")) 21 else if (stonecutter.eval(mcVersion, ">=1.18")) 17 else 16
 java {
     withSourcesJar()
     targetCompatibility = JavaVersion.toVersion(java)
     sourceCompatibility = JavaVersion.toVersion(java)
 }
-kotlin.jvmToolchain(java)
+kotlin.jvmToolchain(maxOf(java, 17))
+tasks.withType<JavaCompile>().configureEach { options.release.set(java) }
 
 kotlin {
     compilerOptions {
@@ -160,6 +173,12 @@ tasks.processResources {
     )
 
     filesMatching("fabric.mod.json") { expand(map) }
+
+    if (java < 17) {
+        filesMatching("reden.mixins.json") {
+            filter { line -> line.replace("JAVA_17", "JAVA_$java") }
+        }
+    }
 
     if (obfuscated) {
         filesMatching("fabric.mod.json") {
