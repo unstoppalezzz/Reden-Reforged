@@ -85,6 +85,7 @@ public class MixinCommands {
         if (reden$isTickCommand(command)) return;
         if (source.getEntity() instanceof ServerPlayer player) {
             UndoMixinHelper.playerStopRecording(player);
+            UndoMixinHelper.notePlaybackCommand(player, source.getLevel(), command);
         }
     }
 

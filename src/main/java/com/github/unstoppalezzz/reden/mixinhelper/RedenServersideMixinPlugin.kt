@@ -161,9 +161,11 @@ class RedenServersideMixinPlugin : IExtension,  IMixinConfigPlugin {
     override fun shouldApplyMixin(targetClassName: String, mixinClassName: String): Boolean {
         if (mixinClassName.startsWith("com.github.unstoppalezzz.reden.mixin.debugger."))
             return APPLY_DEBUGGER_MIXINS
-        if (mixinClassName.startsWith("com.github.unstoppalezzz.reden.mixin.") && mixinClassName.contains(".otherMods.")) {
-            val modId = mixinClassName.split(".").dropWhile { it != "otherMods" }.drop(1).firstOrNull() ?: return true
-            return FabricLoader.getInstance().isModLoaded(modId)
+        if (mixinClassName.startsWith("com.github.unstoppalezzz.reden.mixin.") &&
+            (mixinClassName.contains(".otherMods.") || mixinClassName.contains(".mods."))) {
+            val modId = mixinClassName.split(".").dropWhile { it != "otherMods" && it != "mods" }.drop(1).firstOrNull() ?: return true
+            return FabricLoader.getInstance().isModLoaded(modId) ||
+                FabricLoader.getInstance().isModLoaded(modId.replace('_', '-'))
         }
         return true
     }

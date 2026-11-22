@@ -15,6 +15,7 @@ import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.recordId
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.recording
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecords
 import com.github.unstoppalezzz.reden.mixinhelper.UndoMixinHelper.undoRecordsMap
+import com.github.unstoppalezzz.reden.undo.CapturePlayback
 import com.github.unstoppalezzz.reden.undo.SurvivalUndo
 import com.github.unstoppalezzz.reden.utils.multiver.*
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
@@ -321,6 +322,8 @@ object UndoMixinHelper {
         pendingLingerExpireTick = Int.MIN_VALUE
         throttleTick = Int.MIN_VALUE
         genericOriginsExpandedThisTick.clear()
+        playbackOwners.clear()
+        playbackSessions.clear()
         isRestoring = false
     }
 
@@ -331,6 +334,10 @@ object UndoMixinHelper {
     fun pushRecord(id: Long, reasonSupplier: () -> String): Boolean {
         val reason = reasonSupplier()
         val attributed = attributedRecordId(id)
+        val outer = undoRecords.lastOrNull()
+        if (attributed == 0L && outer?.record != null) {
+            return undoRecords.add(UndoRecordEntry(outer.id, outer.record, reason))
+        }
         return undoRecords.add(
             UndoRecordEntry(
                 attributed,
@@ -687,9 +694,10 @@ object UndoMixinHelper {
      */
     private fun addRecord(
         cause: PlayerData.UndoRecord.Cause,
-        player: ServerPlayer
+        player: ServerPlayer,
+        allowNested: Boolean = false
     ): PlayerData.UndoRecord {
-        if (undoRecords.size != 0) {
+        if (!allowNested && undoRecords.size != 0) {
             throw IllegalStateException("Cannot add record when there is already one.")
         }
         val undoRecord = PlayerData.UndoRecord(
@@ -790,20 +798,118 @@ object UndoMixinHelper {
                     //? if >= 1.21.6
                     com.github.unstoppalezzz.reden.utils.server.tickCount + ENTITY_TRIGGER_LINGER_TICKS
             }
-            playerView.redo
-                .onEach { removeRecord(it.id) }
-                .clear()
-            var sum = playerView.undo.map(PlayerData.UndoRecord::getMemorySize).sum()
-            val allowedUndoSizeInBytes = 30 * 1024 * 1024
-            if (allowedUndoSizeInBytes >= 0) {
-                while (sum > allowedUndoSizeInBytes) {
-                    if (isDebug) debugLogger("[record] over memory limit ($sum bytes), dropping oldest record ${playerView.undo.first().id}")
-                    removeRecord(playerView.undo.first().id)
-                    playerView.undo.removeFirst()
-                    sum = playerView.undo.map(PlayerData.UndoRecord::getMemorySize).sum()
-                }
+            clearRedoAndTrim(playerView)
+        }
+    }
+
+    private fun clearRedoAndTrim(playerView: PlayerData) {
+        playerView.redo
+            .onEach { removeRecord(it.id) }
+            .clear()
+        var sum = playerView.undo.map(PlayerData.UndoRecord::getMemorySize).sum()
+        val allowedUndoSizeInBytes = 30 * 1024 * 1024
+        if (allowedUndoSizeInBytes >= 0) {
+            while (sum > allowedUndoSizeInBytes) {
+                if (isDebug) debugLogger("[record] over memory limit ($sum bytes), dropping oldest record ${playerView.undo.first().id}")
+                removeRecord(playerView.undo.first().id)
+                playerView.undo.removeFirst()
+                sum = playerView.undo.map(PlayerData.UndoRecord::getMemorySize).sum()
             }
         }
+    }
+
+
+    private const val PLAYBACK_GRACE_TICKS = 20
+    private const val PLAYBACK_REASON = "capture-playback"
+
+    private class PlaybackSession(val player: java.util.UUID, val recordId: Long, var lastActiveTick: Int)
+
+    private val playbackOwners = HashMap<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>, java.util.UUID>()
+    private val playbackSessions = HashMap<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>, PlaybackSession>()
+
+    @JvmStatic
+    fun notePlaybackCommand(player: ServerPlayer, level: ServerLevel, command: String) {
+        if (!CapturePlayback.loaded || !CapturePlayback.isPlaybackCommand(command)) return
+        playbackOwners[level.dimension()] = player.uuid
+    }
+
+    @JvmStatic
+    fun beginPlaybackDispatch(level: ServerLevel): Boolean {
+        if (isRestoring) return false
+        val key = level.dimension()
+        val now = com.github.unstoppalezzz.reden.utils.server.tickCount
+
+        var session = playbackSessions[key]
+        if (session != null && undoRecordsMap[session.recordId] == null) {
+            playbackSessions.remove(key)
+            session = null
+        }
+        if (session == null) {
+            val owner = playbackOwners[key] ?: return false
+            val player = com.github.unstoppalezzz.reden.utils.server.playerList.getPlayer(owner) ?: return false
+            session = startPlaybackSession(player, now) ?: return false
+            playbackSessions[key] = session
+        }
+        session.lastActiveTick = now
+        val record = undoRecordsMap[session.recordId] ?: return false
+        undoRecords.add(UndoRecordEntry(record.id, record, PLAYBACK_REASON))
+        return true
+    }
+
+    @JvmStatic
+    fun endPlaybackDispatch() {
+        val index = undoRecords.indexOfLast { it.reason == PLAYBACK_REASON }
+        if (index < 0) return
+        if (index != undoRecords.lastIndex) {
+            Reden.LOGGER.warn("Unbalanced undo records after playback dispatch: ${undoRecords.drop(index + 1).map { it.reason }}")
+        }
+        while (undoRecords.size > index) undoRecords.removeLast()
+    }
+
+    private fun tickPlaybackSessions() {
+        if (playbackSessions.isEmpty()) return
+        val server = com.github.unstoppalezzz.reden.utils.server
+        val now = server.tickCount
+        playbackSessions.entries.toList().forEach { (key, session) ->
+            val level = server.getLevel(key)
+            if (level != null && CapturePlayback.hasPlayback(level)) {
+                session.lastActiveTick = now
+            } else if (now - session.lastActiveTick > PLAYBACK_GRACE_TICKS) {
+                finishPlaybackSession(key, session, now)
+            }
+        }
+    }
+
+    private fun startPlaybackSession(player: ServerPlayer, now: Int): PlaybackSession? {
+        val view = player.data()
+        if (!view.canRecord || view.isRecording) return null
+        val record = addRecord(PlayerData.UndoRecord.Cause.COMMAND, player, allowNested = true)
+        SurvivalUndo.startRecord(player, record)
+        view.undo.add(record)
+        if (isDebug) debugLogger("[record] created ${record.id} for capture-playback, player=${player.scoreboardName} tick=$now")
+        return PlaybackSession(player.uuid, record.id, now)
+    }
+
+    private fun finishPlaybackSession(
+        key: net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>,
+        session: PlaybackSession,
+        now: Int
+    ) {
+        playbackSessions.remove(key)
+        val record = undoRecordsMap[session.recordId] ?: return
+        val player = com.github.unstoppalezzz.reden.utils.server.playerList.getPlayer(session.player)
+        val view = player?.data()
+        player?.let { SurvivalUndo.stopRecord(it, record) }
+        if (record.isNoOp()) {
+            removeRecord(record.id)
+            view?.undo?.remove(record)
+            if (isDebug) debugLogger("[record] discarded empty capture-playback record ${record.id}")
+            return
+        }
+        pendingLingerRecordId = record.id
+        pendingLingerExpireTick = now + ENTITY_TRIGGER_LINGER_TICKS
+        view?.let(::clearRedoAndTrim)
+        if (isDebug) debugLogger("[record] finished capture-playback record ${record.id}, ${record.data.size} blocks")
     }
 
     private fun PlayerData.UndoRecord.isNoOp() = data.isEmpty() && entities.isEmpty() && killedPlayers.isEmpty()
@@ -911,6 +1017,7 @@ object UndoMixinHelper {
         ServerTickEvents.END_SERVER_TICK.register {
             refreshLingeringSurvivalRecord()
             releaseSteppedOffPlates()
+            tickPlaybackSessions()
         }
     }
 }

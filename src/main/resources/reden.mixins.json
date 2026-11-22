@@ -34,7 +34,8 @@
     "undo.MixinFallingBlockEntity",
     "undo.MixinTripWireBlock",
     "undo.data.MixinChunkSection",
-    "undo.helper.NoOpMixin"
+    "undo.helper.NoOpMixin",
+    "mods.g4mespeed_capture_playback.MixinSignalEventContext"
   ],
   "injectors": {
     "defaultRequire": 1
