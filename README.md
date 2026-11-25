@@ -48,6 +48,11 @@ Press R+C in game to access the setting page
 
 See [PERMISSIONS.md](PERMISSIONS.md) for the server permission
 
+## Supported Mods
+
+ - [Capture & Playback](https://modrinth.com/mod/capture-playback)
+ - [Axiom](https://modrinth.com/mod/axiom)
+  
 ## Credits
 
 Original project: [zly2006/reden-is-what-we-made](https://github.com/zly2006/reden-is-what-we-made)  
