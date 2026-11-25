@@ -35,7 +35,16 @@
     "undo.MixinTripWireBlock",
     "undo.data.MixinChunkSection",
     "undo.helper.NoOpMixin",
-    "mods.g4mespeed_capture_playback.MixinSignalEventContext"
+    "mods.g4mespeed_capture_playback.MixinSignalEventContext",
+    "mods.g4mespeed_capture_playback.MixinWorldSignalEventContext",
+    "mods.axiom.MixinAxiomDispatcher",
+    "mods.axiom.MixinAxiomPackets",
+    "mods.axiom.MixinAxiomSetBlock",
+    "mods.axiom.MixinAxiomSetBuffer",
+    "mods.malilib.MixinSliderCallbackInteger"
+  ],
+  "client": [
+    "chat.MixinChatComponent"
   ],
   "injectors": {
     "defaultRequire": 1

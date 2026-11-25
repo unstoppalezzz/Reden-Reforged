@@ -61,6 +61,14 @@ fun Player.sendSystemMessage(text: Component) {
     *///?}
 }
 
+fun Player.sendOverlayMessage(text: Component) {
+    //? if >=26.1 {
+    sendOverlayMessage(text)
+    //?} else {
+    /*displayClientMessage(text, true)
+    *///?}
+}
+
 val net.minecraft.world.entity.Entity.levelCompat: net.minecraft.world.level.Level
     //? if >=1.20 {
     get() = level()

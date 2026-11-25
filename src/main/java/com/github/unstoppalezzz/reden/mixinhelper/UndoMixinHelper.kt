@@ -324,6 +324,7 @@ object UndoMixinHelper {
         genericOriginsExpandedThisTick.clear()
         playbackOwners.clear()
         playbackSessions.clear()
+        axiomEdits.clear()
         isRestoring = false
     }
 
@@ -912,6 +913,89 @@ object UndoMixinHelper {
         if (isDebug) debugLogger("[record] finished capture-playback record ${record.id}, ${record.data.size} blocks")
     }
 
+    private const val AXIOM_MAX_TRACKED_BLOCKS = 500_000
+
+    private class AxiomEdit(val level: ServerLevel?, val captured: it.unimi.dsi.fastutil.longs.LongArrayList?)
+
+    private val axiomEdits = HashMap<java.util.UUID, AxiomEdit>()
+
+    private fun canBeginAxiomEdit(player: ServerPlayer): Boolean {
+        if (isRestoring || undoRecords.isNotEmpty()) return false
+        val view = player.data()
+        return view.canRecord && !view.isRecording
+    }
+
+    private fun beginAxiomEdit(player: ServerPlayer, edit: AxiomEdit): Boolean {
+        if (!canBeginAxiomEdit(player)) return false
+        playerStartRecording(player, PlayerData.UndoRecord.Cause.AXIOM)
+        if (!player.data().isRecording) return false
+        axiomEdits[player.uuid] = edit
+        return true
+    }
+
+    @JvmStatic
+    fun beginAxiomEdit(player: ServerPlayer) {
+        beginAxiomEdit(player, AxiomEdit(null, null))
+    }
+
+    @JvmStatic
+    fun beginAxiomBufferEdit(player: ServerPlayer?, level: ServerLevel, buffer: Any) {
+        if (player == null || !canBeginAxiomEdit(player)) return
+        val positions = com.github.unstoppalezzz.reden.undo.Axiom.bufferPositions(buffer, level, AXIOM_MAX_TRACKED_BLOCKS) ?: return
+        if (positions.size > AXIOM_MAX_TRACKED_BLOCKS) {
+            player.sendSystemMessage(Text.translatable("reden.feature.undo.axiom.too_large", AXIOM_MAX_TRACKED_BLOCKS))
+            return
+        }
+        val captured = it.unimi.dsi.fastutil.longs.LongArrayList(positions.size)
+        if (!beginAxiomEdit(player, AxiomEdit(level, captured))) return
+        val rec = recording ?: return
+        val pos = BlockPos.MutableBlockPos()
+        val iter = positions.iterator()
+        while (iter.hasNext()) {
+            val key = iter.nextLong()
+            if (rec.data.containsKey(key)) continue
+            pos.set(key)
+            val immutable = pos.immutable()
+            level.modified(immutable)
+            rec.data[key] = rec.fromWorld(level, immutable, false)
+            captured.add(key)
+        }
+        rec.lastChangedTick = com.github.unstoppalezzz.reden.utils.server.tickCount
+        if (isDebug) debugLogger("[axiom] captured ${captured.size} blocks into record ${rec.id} for ${player.scoreboardName}")
+    }
+
+    @JvmStatic
+    fun endAxiomEdit(player: ServerPlayer) {
+        val edit = axiomEdits.remove(player.uuid) ?: return
+        val rec = recording
+        if (rec != null && edit.level != null && edit.captured != null) {
+            val pos = BlockPos.MutableBlockPos()
+            val iter = edit.captured.iterator()
+            while (iter.hasNext()) {
+                val key = iter.nextLong()
+                val entry = rec.data[key] ?: continue
+                if (entry.beData != null || entry.state.hasBlockEntity()) continue
+                if (edit.level.getBlockState(pos.set(key)) === entry.state) rec.data.remove(key)
+            }
+        }
+        playerStopRecording(player)
+    }
+
+    private fun closeDanglingAxiomEdits() {
+        if (axiomEdits.isEmpty()) return
+        val server = com.github.unstoppalezzz.reden.utils.server
+        for (uuid in axiomEdits.keys.toList()) {
+            Reden.LOGGER.warn("Axiom edit by $uuid didn't finish normally, closing its undo record")
+            val player = server.playerList.getPlayer(uuid)
+            if (player != null) {
+                endAxiomEdit(player)
+            } else {
+                axiomEdits.remove(uuid)
+                undoRecords.removeAll { it.reason.startsWith("player recording/") && it.reason.endsWith("/${PlayerData.UndoRecord.Cause.AXIOM}") }
+            }
+        }
+    }
+
     private fun PlayerData.UndoRecord.isNoOp() = data.isEmpty() && entities.isEmpty() && killedPlayers.isEmpty()
 
     private fun PlayerData.UndoRecord.isNonLethalHit(player: ServerPlayer): Boolean {
@@ -1018,6 +1102,7 @@ object UndoMixinHelper {
             refreshLingeringSurvivalRecord()
             releaseSteppedOffPlates()
             tickPlaybackSessions()
+            closeDanglingAxiomEdits()
         }
     }
 }

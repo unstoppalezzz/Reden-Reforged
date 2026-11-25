@@ -5,7 +5,12 @@ import com.github.unstoppalezzz.reden.Reden
 /*import com.github.unstoppalezzz.reden.malilib.syncUndoSettings*/
 import com.github.unstoppalezzz.reden.utils.multiver.Text
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
+import com.github.unstoppalezzz.reden.malilib.UNDO_MESSAGE
+import com.github.unstoppalezzz.reden.malilib.UndoMessageMode
+import com.github.unstoppalezzz.reden.utils.multiver.sendOverlayMessage
+import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
+import net.minecraft.world.entity.player.Player
 //? if >=1.20.5
 import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationNetworking
 
@@ -33,6 +38,33 @@ private fun undoStatusMessage(status: Int) = when (status) {
     else  -> translateMessage("undo", "unknown_status")
 }
 
+private fun showUndoMessage(player: Player, message: Component) {
+    when (UNDO_MESSAGE.mode) {
+        UndoMessageMode.INFO_BAR -> player.sendOverlayMessage(message)
+        UndoMessageMode.NONE -> {}
+        else -> player.sendSystemMessage(message)
+    }
+}
+
+private fun isUndoMessage(message: Component) =
+    //? if >=1.19 {
+    (message.contents as? net.minecraft.network.chat.contents.TranslatableContents)?.key == "reden.message.undo.base"
+    //?} else {
+    /*(message as? net.minecraft.network.chat.TranslatableComponent)?.key == "reden.message.undo.base"
+    *///?}
+
+fun hideUndoMessageFromChat(message: Component): Boolean {
+    if (!isUndoMessage(message)) return false
+    return when (UNDO_MESSAGE.mode) {
+        UndoMessageMode.INFO_BAR -> {
+            Minecraft.getInstance().player?.sendOverlayMessage(message)
+            true
+        }
+        UndoMessageMode.NONE -> true
+        else -> false
+    }
+}
+
 private fun onHello(packet: HelloS2CPacket) {
     Reden.LOGGER.info("Hello from server: $packet")
     Reden.LOGGER.info("Feature set: " + packet.featureSet.joinToString())
@@ -40,13 +72,13 @@ private fun onHello(packet: HelloS2CPacket) {
         when (name) {
             //? if >=1.20.5 {
             "undo" -> ClientPlayNetworking.registerGlobalReceiver(Undo.ID) { packet, context ->
-                context.player().sendSystemMessage(undoStatusMessage(packet.status))
+                showUndoMessage(context.player(), undoStatusMessage(packet.status))
             }
             //?} else {
             /*"undo" -> {
                 ClientPlayNetworking.registerGlobalReceiver(Undo.ID) { client, _, buf, _ ->
                     val packet = Undo.decode(buf)
-                    client.execute { client.player?.sendSystemMessage(undoStatusMessage(packet.status)) }
+                    client.execute { client.player?.let { showUndoMessage(it, undoStatusMessage(packet.status)) } }
                 }
                 syncUndoSettings()
             }

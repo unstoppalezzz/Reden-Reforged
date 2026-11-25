@@ -162,6 +162,7 @@ ${data.map { "${BlockPos.of(it.key).toShortString()} = ${it.value.state}" }.join
             LITEMATICA_TASK(Text.translatable("reden.feature.undo.cause.litematica_task")),
             PROJECTILE(Text.translatable("reden.feature.undo.cause.projectile")),
             CONTAINER_MENU(Text.translatable("reden.feature.undo.cause.container_menu")),
+            AXIOM(Text.translatable("reden.feature.undo.cause.axiom")),
             UNKNOWN(Text.translatable("reden.feature.undo.cause.unknown"))
         }
     }

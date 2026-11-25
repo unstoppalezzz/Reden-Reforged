@@ -67,6 +67,7 @@ private fun defaultHotkey(name: String, fallback: String) =
 @JvmField val UNDO_KEY = ConfigHotkey("undoKey", defaultHotkey("undoKey", "LEFT_CONTROL,Z"),"reden.config.undoKey.comment").generic().hotkey()
 @JvmField val REDO_KEY = ConfigHotkey("redoKey", defaultHotkey("redoKey", "LEFT_CONTROL,Y"),"reden.config.redoKey.comment").generic().hotkey()
 @JvmField val CREATIVE_ONLY = ConfigBoolean("creativeOnly", true, "reden.config.creativeOnly.comment").generic()
+@JvmField val UNDO_MESSAGE = UndoMessageConfig("undoMessage", UndoMessageMode.CHAT, "reden.config.undoMessage.comment").generic()
 //? if >=1.21 {
 @JvmField val CHAT_RIGHT_CLICK_MENU = ConfigBoolean("chatRightClickMenu", true, "reden.config.chatRightClickMenu.comment", "reden.config.chatRightClickMenu", "reden.config.chatRightClickMenu").generic()
 //?} else {

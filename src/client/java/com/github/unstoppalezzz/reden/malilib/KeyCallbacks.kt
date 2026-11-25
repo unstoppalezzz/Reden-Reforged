@@ -2,11 +2,14 @@ package com.github.unstoppalezzz.reden.malilib
 
 import com.github.unstoppalezzz.reden.Reden
 import com.github.unstoppalezzz.reden.network.Undo
+import com.github.unstoppalezzz.reden.undo.AxiomKeys
 import com.github.unstoppalezzz.reden.utils.multiver.Text
 //? if <1.19
 /*import com.github.unstoppalezzz.reden.utils.multiver.sendSystemMessage*/
 import com.github.unstoppalezzz.reden.utils.red
 import fi.dy.masa.malilib.config.options.ConfigHotkey
+import fi.dy.masa.malilib.hotkeys.KeybindMulti
+import java.util.function.Predicate
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
 import net.minecraft.client.Minecraft
 
@@ -32,17 +35,24 @@ fun configureKeyCallbacks(mc: Minecraft) {
             true
         } else false
     }
+    AxiomKeys.supersede = Predicate { isUndo ->
+        val keys = (if (isUndo) UNDO_KEY else REDO_KEY).keybind.keys
+        keys.isNotEmpty() && keys.all(KeybindMulti::isKeyDown) && undoAllowed(mc) && canSendUndo()
+    }
 }
 
 private fun undoAllowed(mc: Minecraft) =
     mc.gameMode?.playerMode?.isCreative == true || (mc.gameMode != null && !CREATIVE_ONLY.booleanValue)
 
-fun syncUndoSettings() {
+private fun canSendUndo(): Boolean =
     //? if >=1.20.5 {
-    if (!ClientPlayNetworking.canSend(Undo.ID)) return
+    ClientPlayNetworking.canSend(Undo.ID)
     //?} else {
-    /*if (Minecraft.getInstance().connection == null) return
+    /*Minecraft.getInstance().connection != null
     *///?}
+
+fun syncUndoSettings() {
+    if (!canSendUndo()) return
     sendUndo(Undo(if (CREATIVE_ONLY.booleanValue) Undo.REQUEST_CREATIVE_ONLY else Undo.REQUEST_ALLOW_SURVIVAL))
 }
 

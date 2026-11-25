@@ -7,14 +7,20 @@ import java.lang.reflect.Method
 
 object CapturePlayback {
     private const val MOD_ID = "g4mespeed-capture-playback"
-    private const val LEVEL_ACCESS = "com.g4mesoft.captureplayback.access.GSIServerLevelAccess"
+    private val LEVEL_ACCESS = listOf(
+        "com.g4mesoft.captureplayback.access.GSIServerLevelAccess",
+        "com.g4mesoft.captureplayback.access.GSIServerWorldAccess",
+    )
 
     val loaded: Boolean by lazy { FabricLoader.getInstance().isModLoaded(MOD_ID) }
 
     private val getPlaybackStreams: Method? by lazy {
         if (!loaded) return@lazy null
         try {
-            Class.forName(LEVEL_ACCESS).getMethod("gcp_getPlaybackStreams")
+            val access = LEVEL_ACCESS.firstNotNullOfOrNull { name ->
+                try { Class.forName(name) } catch (_: ClassNotFoundException) { null }
+            } ?: throw ClassNotFoundException(LEVEL_ACCESS.joinToString())
+            access.getMethod("gcp_getPlaybackStreams")
         } catch (e: Throwable) {
             Reden.LOGGER.warn("Capture & Playback is loaded but its level access could not be found, playback won't be undoable", e)
             null
